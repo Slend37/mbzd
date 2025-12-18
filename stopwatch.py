@@ -1,5 +1,6 @@
 import tkinter as tk
 from datetime import datetime
+from collections import defaultdict
 
 class Stopwatch:
     def __init__(self, parent, number, app):
@@ -13,6 +14,9 @@ class Stopwatch:
         self.colors = ["#2196F3", "#4CAF50", "#FF9800", "#9C27B0", "#FF5722", "#009688", "#795548", "#607D8B"]
         self.color = self.colors[(number - 1) % len(self.colors)]  # Назначаем цвет в зависимости от номера
         self.is_editing_name = False  # Флаг режима редактирования имени
+        self.just_completed_lap = False  # Флаг только что завершенного круга
+        self.lap_completion_time = None  # Время завершения круга
+        self.last_lap_time = 0  # Время последнего круга
         
         # Создаем фрейм для этого секундомера в одну строку
         self.frame = tk.Frame(parent, height=40)
@@ -189,6 +193,10 @@ class Stopwatch:
             # Фокус на поле ввода
             self.name_entry.focus_set()
             self.name_entry.select_range(0, tk.END)
+            
+            # Бинд нажатия Enter для сохранения и Escape для отмены
+            self.name_entry.bind("<Return>", lambda e: self.save_name())
+            self.name_entry.bind("<Escape>", lambda e: self.cancel_name_editing())
     
     def save_name(self):
         """Сохраняет новое имя секундомера"""
@@ -225,6 +233,10 @@ class Stopwatch:
         if self.is_editing_name:
             self.is_editing_name = False
             
+            # Убираем бинды клавиш
+            self.name_entry.unbind("<Return>")
+            self.name_entry.unbind("<Escape>")
+            
             # Скрываем поле ввода и кнопки
             self.name_entry.pack_forget()
             self.save_name_btn.pack_forget()
@@ -241,11 +253,16 @@ class Stopwatch:
         """Возвращает цвет этого секундомера"""
         return self.color
     
+    def get_current_lap(self):
+        """Возвращает текущий номер круга для этого секундомера"""
+        return len(self.lap_times)
+    
     def start(self):
         """Запуск секундомера"""
         if not self.running:
             self.running = True
             self.start_time = datetime.now()
+            self.just_completed_lap = False
             self.start_btn.config(state="disabled", bg="#81C784")
             self.stop_btn.config(state="normal", bg="#f44336")
             self.lap_btn.config(state="normal", bg="#FF9800")
@@ -302,6 +319,7 @@ class Stopwatch:
         self.start_time = None
         self.elapsed_time = 0
         self.lap_times = []  # Очищаем список кругов
+        self.just_completed_lap = False
         self.time_label.config(text="00:00:00.00")
         self.start_btn.config(state="normal", bg="#4CAF50")
         self.stop_btn.config(state="disabled", bg="#E57373")
@@ -320,7 +338,12 @@ class Stopwatch:
         if self.running and self.start_time:
             current_elapsed = self.elapsed_time + (datetime.now() - self.start_time).total_seconds()
             self.lap_times.append(current_elapsed)
+            self.last_lap_time = current_elapsed
             self.lap_indicator.config(text=f"Круги: {len(self.lap_times)}")
+            
+            # Устанавливаем флаг только что завершенного круга
+            self.just_completed_lap = True
+            self.lap_completion_time = datetime.now()
             
             print(f"{self.get_name()} - Круг {len(self.lap_times)}: {self.format_time(current_elapsed)}")
             
@@ -343,24 +366,45 @@ class Stopwatch:
         else:
             return f"{minutes:02d}:{secs:02d}.{centisecs:02d}"
     
-    def update_name(self):
-        """Обновление названия секундомера (только если имя было по умолчанию)"""
-        # Проверяем, было ли имя по умолчанию
-        default_pattern = f"Секундомер {self.number}"
-        old_default_pattern = f"Секундомер {self.number - 1}"  # Старый номер
+    def update_display_number(self, new_number):
+        """Обновляет только номер секундомера, сохраняя пользовательское имя"""
+        self.number = new_number
         
-        # Если текущее имя было по умолчанию (или старый вариант по умолчанию), обновляем его
-        if (self.default_name == default_pattern or 
-            self.default_name == old_default_pattern or
-            self.default_name.startswith("Секундомер ")):
-            
-            self.default_name = f"Секундомер {self.number}"
-            self.name_var.set(self.default_name)
-            self.name_label.config(text=self.default_name)
-            
-            # Если находимся в режиме редактирования, завершаем его
-            if self.is_editing_name:
-                self.finish_name_editing()
+        # Если имя было по умолчанию (например, "Секундомер 1"), обновляем его
+        if self.default_name.startswith("Секундомер "):
+            try:
+                # Проверяем, заканчивается ли имя на число
+                import re
+                if re.search(r'\d+$', self.default_name):
+                    # Обновляем имя по умолчанию с новым номером
+                    self.default_name = f"Секундомер {new_number}"
+                    self.name_var.set(self.default_name)
+                    self.name_label.config(text=self.default_name)
+            except:
+                # Если что-то пошло не так, просто обновляем имя
+                self.default_name = f"Секундомер {new_number}"
+                self.name_var.set(self.default_name)
+                self.name_label.config(text=self.default_name)
+        
+        # Если находимся в режиме редактирования, завершаем его
+        if self.is_editing_name:
+            self.finish_name_editing()
+        
+        # Обновляем цвет в зависимости от нового номера
+        self.color = self.colors[(new_number - 1) % len(self.colors)]
+        self.time_label.config(fg=self.color)
+        self.lap_indicator.config(fg=self.color)
+        
+        # Обновляем цвет кнопки "Увеличить" (нужно найти ее в buttons_frame)
+        for widget in self.frame.winfo_children():
+            if isinstance(widget, tk.Frame):
+                for btn in widget.winfo_children():
+                    if isinstance(btn, tk.Button) and btn.cget("text") == "🔍":
+                        btn.config(bg=self.color)
+                        break
+        
+        # Обновляем отображение кругов
+        self.app.update_all_laps_display()
     
     def remove(self):
         """Удаление этого секундомера"""
