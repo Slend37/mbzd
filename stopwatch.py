@@ -1,6 +1,5 @@
 import tkinter as tk
 from datetime import datetime
-from collections import defaultdict
 
 class Stopwatch:
     def __init__(self, parent, number, app):
@@ -18,27 +17,27 @@ class Stopwatch:
         self.lap_completion_time = None  # Время завершения круга
         self.last_lap_time = 0  # Время последнего круга
         
-        # Создаем фрейм для этого секундомера в одну строку
-        self.frame = tk.Frame(parent, height=40)
-        self.frame.pack(fill="x", pady=2, padx=5)
+        # Создаем фрейм для этого лыжника в одну строку
+        self.frame = tk.Frame(parent, height=45)  # Увеличил высоту
+        self.frame.pack(fill="x", pady=3, padx=5)  # Увеличил отступы
         self.frame.pack_propagate(False)
         
         # Создаем элементы интерфейса
         self.create_widgets()
         
     def create_widgets(self):
-        """Создание виджетов для секундомера"""
+        """Создание виджетов для лыжника"""
         # Контейнер для названия
         self.name_container = tk.Frame(self.frame)
         self.name_container.grid(row=0, column=0, padx=5, sticky="w")
         
         # По умолчанию показываем метку с именем
-        self.default_name = f"Секундомер {self.number}"
+        self.default_name = f"Лыжник {self.number}"
         self.name_label = tk.Label(
             self.name_container,
             text=self.default_name,
-            font=("Arial", 9),
-            width=22,
+            font=("Arial", 10),  # Увеличил шрифт
+            width=25,  # Увеличил ширину
             anchor="w",
             cursor="hand2"
         )
@@ -50,8 +49,8 @@ class Stopwatch:
         self.name_entry = tk.Entry(
             self.name_container,
             textvariable=self.name_var,
-            width=22,
-            font=("Arial", 9)
+            width=25,  # Увеличил ширину
+            font=("Arial", 10)  # Увеличил шрифт
         )
         
         # Кнопка сохранения имени (изначально скрыта)
@@ -62,7 +61,7 @@ class Stopwatch:
             width=3,
             bg="#4CAF50",
             fg="white",
-            font=("Arial", 8)
+            font=("Arial", 9)  # Увеличил шрифт
         )
         
         # Кнопка отмены редактирования (изначально скрыта)
@@ -73,16 +72,16 @@ class Stopwatch:
             width=3,
             bg="#f44336",
             fg="white",
-            font=("Arial", 8)
+            font=("Arial", 9)  # Увеличил шрифт
         )
         
-        # Отображение времени (15 символов) - кликабельно для выбора в увеличенный вид
+        # Отображение времени - кликабельно для выбора в увеличенный вид
         self.time_label = tk.Label(
             self.frame,
             text="00:00:00.00",
-            font=("Courier New", 10, "bold"),
+            font=("Courier New", 11, "bold"),  # Увеличил шрифт
             fg=self.color,
-            width=15,
+            width=18,  # Увеличил ширину
             anchor="w",
             cursor="hand2"
         )
@@ -98,87 +97,87 @@ class Stopwatch:
             buttons_frame,
             text="Старт",
             command=self.start,
-            width=7,
+            width=8,  # Увеличил ширину
             bg="#4CAF50",
             fg="white",
-            font=("Arial", 8)
+            font=("Arial", 9)  # Увеличил шрифт
         )
-        self.start_btn.pack(side="left", padx=1)
+        self.start_btn.pack(side="left", padx=2)  # Увеличил отступ
         
         # Кнопка Круг
         self.lap_btn = tk.Button(
             buttons_frame,
             text="Круг",
             command=self.record_lap,
-            width=7,
+            width=8,
             bg="#FF9800",
             fg="white",
-            font=("Arial", 8),
+            font=("Arial", 9),
             state="disabled"
         )
-        self.lap_btn.pack(side="left", padx=1)
+        self.lap_btn.pack(side="left", padx=2)
         
         # Кнопка Стоп
         self.stop_btn = tk.Button(
             buttons_frame,
             text="Стоп",
             command=self.stop,
-            width=7,
+            width=8,
             bg="#f44336",
             fg="white",
-            font=("Arial", 8),
+            font=("Arial", 9),
             state="disabled"
         )
-        self.stop_btn.pack(side="left", padx=1)
+        self.stop_btn.pack(side="left", padx=2)
         
         # Кнопка Сброс
         reset_btn = tk.Button(
             buttons_frame,
             text="Сброс",
             command=self.reset,
-            width=7,
+            width=8,
             bg="#9E9E9E",
             fg="white",
-            font=("Arial", 8)
+            font=("Arial", 9)
         )
-        reset_btn.pack(side="left", padx=1)
+        reset_btn.pack(side="left", padx=2)
         
         # Кнопка "Увеличить" для отображения в верхней правой панели
         enlarge_btn = tk.Button(
             buttons_frame,
             text="🔍",
             command=self.select_for_large_view,
-            width=3,
+            width=4,  # Увеличил ширину
             bg=self.color,
             fg="white",
-            font=("Arial", 8)
+            font=("Arial", 9)
         )
-        enlarge_btn.pack(side="left", padx=1)
+        enlarge_btn.pack(side="left", padx=2)
         
         # Кнопка удаления
         remove_btn = tk.Button(
             buttons_frame,
             text="✕",
             command=self.remove,
-            width=3,
+            width=4,
             bg="#333",
             fg="white",
-            font=("Arial", 8)
+            font=("Arial", 9)
         )
-        remove_btn.pack(side="left", padx=1)
+        remove_btn.pack(side="left", padx=2)
         
         # Индикатор кругов (количество)
         self.lap_indicator = tk.Label(
             self.frame,
             text="Круги: 0",
-            font=("Arial", 8),
+            font=("Arial", 9),
             fg=self.color,
-            width=8
+            width=10  # Увеличил ширину
         )
         self.lap_indicator.grid(row=0, column=3, padx=5, sticky="w")
         
     def start_name_editing(self):
-        """Начинает редактирование имени секундомера"""
+        """Начинает редактирование имени лыжника"""
         if not self.is_editing_name:
             self.is_editing_name = True
             
@@ -187,8 +186,8 @@ class Stopwatch:
             
             # Показываем поле ввода и кнопки
             self.name_entry.pack(side="left")
-            self.save_name_btn.pack(side="left", padx=2)
-            self.cancel_edit_btn.pack(side="left", padx=2)
+            self.save_name_btn.pack(side="left", padx=3)  # Увеличил отступ
+            self.cancel_edit_btn.pack(side="left", padx=3)
             
             # Фокус на поле ввода
             self.name_entry.focus_set()
@@ -199,7 +198,7 @@ class Stopwatch:
             self.name_entry.bind("<Escape>", lambda e: self.cancel_name_editing())
     
     def save_name(self):
-        """Сохраняет новое имя секундомера"""
+        """Сохраняет новое имя лыжника"""
         new_name = self.name_var.get().strip()
         
         # Проверяем, что имя не пустое
@@ -213,7 +212,7 @@ class Stopwatch:
             # Обновляем отображение кругов
             self.app.update_all_laps_display()
             
-            # Обновляем увеличенный вид, если этот секундомер отображается
+            # Обновляем увеличенный вид, если этот лыжник отображается
             if self.app.current_large_view == self:
                 self.app.show_large_view(self)
         
@@ -246,19 +245,19 @@ class Stopwatch:
             self.name_label.pack(side="left")
     
     def get_name(self):
-        """Возвращает текущее имя секундомера"""
+        """Возвращает текущее имя лыжника"""
         return self.default_name
     
     def get_color(self):
-        """Возвращает цвет этого секундомера"""
+        """Возвращает цвет этого лыжника"""
         return self.color
     
     def get_current_lap(self):
-        """Возвращает текущий номер круга для этого секундомера"""
+        """Возвращает текущий номер круга для этого лыжника"""
         return len(self.lap_times)
     
     def start(self):
-        """Запуск секундомера"""
+        """Запуск лыжника"""
         if not self.running:
             self.running = True
             self.start_time = datetime.now()
@@ -268,7 +267,7 @@ class Stopwatch:
             self.lap_btn.config(state="normal", bg="#FF9800")
             self.update_time()
             
-            # Обновляем увеличенный вид, если этот секундомер отображается
+            # Обновляем увеличенный вид, если этот лыжник отображается
             if self.app.current_large_view == self:
                 self.app.show_large_view(self)
             
@@ -276,7 +275,7 @@ class Stopwatch:
             self.app.update_all_laps_display()
     
     def stop(self):
-        """Остановка секундомера"""
+        """Остановка лыжника"""
         if self.running:
             self.running = False
             if self.start_time:
@@ -285,7 +284,7 @@ class Stopwatch:
             self.stop_btn.config(state="disabled", bg="#E57373")
             self.lap_btn.config(state="disabled", bg="#FFB74D")
             
-            # Обновляем увеличенный вид, если этот секундомер отображается
+            # Обновляем увеличенный вид, если этот лыжник отображается
             if self.app.current_large_view == self:
                 self.app.show_large_view(self)
             
@@ -314,7 +313,7 @@ class Stopwatch:
         self.time_label.config(text=time_str)
     
     def reset(self):
-        """Сброс секундомера"""
+        """Сброс лыжника"""
         self.running = False
         self.start_time = None
         self.elapsed_time = 0
@@ -329,7 +328,7 @@ class Stopwatch:
         # Обновляем отображение кругов
         self.app.update_all_laps_display()
         
-        # Обновляем увеличенный вид, если этот секундомер отображается
+        # Обновляем увеличенный вид, если этот лыжник отображается
         if self.app.current_large_view == self:
             self.app.show_large_view(self)
     
@@ -350,7 +349,7 @@ class Stopwatch:
             # Обновляем отображение кругов
             self.app.update_all_laps_display()
             
-            # Обновляем увеличенный вид, если этот секундомер отображается
+            # Обновляем увеличенный вид, если этот лыжник отображается
             if self.app.current_large_view == self:
                 self.app.show_large_view(self)
     
@@ -367,22 +366,22 @@ class Stopwatch:
             return f"{minutes:02d}:{secs:02d}.{centisecs:02d}"
     
     def update_display_number(self, new_number):
-        """Обновляет только номер секундомера, сохраняя пользовательское имя"""
+        """Обновляет только номер лыжника, сохраняя пользовательское имя"""
         self.number = new_number
         
-        # Если имя было по умолчанию (например, "Секундомер 1"), обновляем его
-        if self.default_name.startswith("Секундомер "):
+        # Если имя было по умолчанию (например, "Лыжник 1"), обновляем его
+        if self.default_name.startswith("Лыжник "):
             try:
                 # Проверяем, заканчивается ли имя на число
                 import re
                 if re.search(r'\d+$', self.default_name):
                     # Обновляем имя по умолчанию с новым номером
-                    self.default_name = f"Секундомер {new_number}"
+                    self.default_name = f"Лыжник {new_number}"
                     self.name_var.set(self.default_name)
                     self.name_label.config(text=self.default_name)
             except:
                 # Если что-то пошло не так, просто обновляем имя
-                self.default_name = f"Секундомер {new_number}"
+                self.default_name = f"Лыжник {new_number}"
                 self.name_var.set(self.default_name)
                 self.name_label.config(text=self.default_name)
         
@@ -395,7 +394,7 @@ class Stopwatch:
         self.time_label.config(fg=self.color)
         self.lap_indicator.config(fg=self.color)
         
-        # Обновляем цвет кнопки "Увеличить" (нужно найти ее в buttons_frame)
+        # Обновляем цвет кнопки "Увеличить"
         for widget in self.frame.winfo_children():
             if isinstance(widget, tk.Frame):
                 for btn in widget.winfo_children():
@@ -407,12 +406,12 @@ class Stopwatch:
         self.app.update_all_laps_display()
     
     def remove(self):
-        """Удаление этого секундомера"""
+        """Удаление этого лыжника"""
         if self.app:
             self.app.remove_stopwatch(self)
     
     def select_for_large_view(self):
-        """Выбор этого секундомера для отображения в увеличенном виде"""
+        """Выбор этого лыжника для отображения в увеличенном виде"""
         self.app.show_large_view(self)
     
     def destroy(self):
