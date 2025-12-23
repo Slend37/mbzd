@@ -2,6 +2,8 @@ import tkinter as tk
 from datetime import datetime
 from collections import defaultdict
 from stopwatch import Stopwatch
+import json
+import os
 
 class StopwatchApp:
     def __init__(self, root):
@@ -215,18 +217,91 @@ class StopwatchApp:
         )
         left_title.pack(pady=5)
         
+        # Панель с кнопками управления
+        buttons_frame = tk.Frame(parent)
+        buttons_frame.pack(pady=5)
+        
         # Кнопка для добавления нового лыжника
         add_button = tk.Button(
-            parent,
+            buttons_frame,
             text="+ Добавить лыжника",
             command=self.add_stopwatch,
             font=("Arial", 11),
             bg="#4CAF50",
             fg="white",
             height=1,
-            width=20
+            width=15
         )
-        add_button.pack(pady=5)
+        add_button.pack(side="left", padx=5)
+        
+        # Кнопка одновременного запуска всех лыжников
+        start_all_button = tk.Button(
+            buttons_frame,
+            text="▶ Запуск всех",
+            command=self.start_all_stopwatches,
+            font=("Arial", 11),
+            bg="#2196F3",
+            fg="white",
+            height=1,
+            width=15
+        )
+        start_all_button.pack(side="left", padx=5)
+        
+        # Кнопка остановки всех лыжников
+        stop_all_button = tk.Button(
+            buttons_frame,
+            text="■ Остановить всех",
+            command=self.stop_all_stopwatches,
+            font=("Arial", 11),
+            bg="#f44336",
+            fg="white",
+            height=1,
+            width=15
+        )
+        stop_all_button.pack(side="left", padx=5)
+        
+        # Кнопка сброса всех лыжников
+        reset_all_button = tk.Button(
+            buttons_frame,
+            text="↻ Сбросить всех",
+            command=self.reset_all_stopwatches,
+            font=("Arial", 11),
+            bg="#FF9800",
+            fg="white",
+            height=1,
+            width=15
+        )
+        reset_all_button.pack(side="left", padx=5)
+        
+        # Панель с кнопками импорта/экспорта
+        import_export_frame = tk.Frame(parent)
+        import_export_frame.pack(pady=5)
+        
+        # Кнопка экспорта данных
+        export_button = tk.Button(
+            import_export_frame,
+            text="Экспорт JSON",
+            command=self.export_to_json,
+            font=("Arial", 11),
+            bg="#9C27B0",
+            fg="white",
+            height=1,
+            width=15
+        )
+        export_button.pack(side="left", padx=5)
+        
+        # Кнопка импорта данных
+        import_button = tk.Button(
+            import_export_frame,
+            text="Импорт JSON",
+            command=self.import_from_json,
+            font=("Arial", 11),
+            bg="#607D8B",
+            fg="white",
+            height=1,
+            width=15
+        )
+        import_button.pack(side="left", padx=5)
         
         # Заголовки колонок (уменьшаем ширины)
         headers_frame = tk.Frame(parent)
@@ -252,6 +327,215 @@ class StopwatchApp:
         
         self.canvas.pack(side="left", fill="both", expand=True, padx=(3, 0))
         self.scrollbar.pack(side="right", fill="y")
+    
+    def start_all_stopwatches(self):
+        """Запускает все секундомеры одновременно"""
+        if not self.stopwatches:
+            self.show_message("Нет лыжников", "Добавьте лыжников для запуска")
+            return
+        
+        # Проверяем, есть ли уже запущенные лыжники
+        running_count = sum(1 for sw in self.stopwatches if sw.running)
+        if running_count > 0:
+            # Запрашиваем подтверждение
+            if not self.ask_confirmation("Подтверждение", 
+                                       f"Уже запущено {running_count} лыжников. Перезапустить всех?"):
+                return
+        
+        # Запоминаем текущее время для синхронного старта
+        start_time = datetime.now()
+        
+        # Запускаем всех лыжников
+        started_count = 0
+        for stopwatch in self.stopwatches:
+            if not stopwatch.running:  # Запускаем только неактивных
+                stopwatch.running = True
+                stopwatch.start_time = start_time  # Устанавливаем одинаковое время старта
+                stopwatch.elapsed_time = 0  # Сбрасываем прошедшее время
+                stopwatch.just_completed_lap = False
+                
+                # Обновляем состояние кнопок
+                stopwatch.start_btn.config(state="disabled", bg="#81C784")
+                stopwatch.stop_btn.config(state="normal", bg="#f44336")
+                stopwatch.lap_btn.config(state="normal", bg="#FF9800")
+                
+                # Обновляем отображение времени
+                stopwatch.update_time()
+                started_count += 1
+                
+                # Обновляем увеличенный вид, если этот лыжник отображается
+                if self.current_large_view == stopwatch:
+                    self.show_large_view(stopwatch)
+        
+        # Обновляем статистику
+        self.update_all_laps_display()
+        
+        # Показываем сообщение
+        self.show_message("Старт всех", f"Одновременно запущено {started_count} лыжников")
+    
+    def stop_all_stopwatches(self):
+        """Останавливает все секундомеры"""
+        if not self.stopwatches:
+            return
+        
+        # Подсчитываем активных лыжников
+        running_count = sum(1 for sw in self.stopwatches if sw.running)
+        if running_count == 0:
+            self.show_message("Нет активных лыжников", "Все лыжники уже остановлены")
+            return
+        
+        # Останавливаем всех лыжников
+        stopped_count = 0
+        for stopwatch in self.stopwatches:
+            if stopwatch.running:
+                stopwatch.running = False
+                if stopwatch.start_time:
+                    stopwatch.elapsed_time += (datetime.now() - stopwatch.start_time).total_seconds()
+                
+                # Обновляем состояние кнопок
+                stopwatch.start_btn.config(state="normal", bg="#4CAF50")
+                stopwatch.stop_btn.config(state="disabled", bg="#E57373")
+                stopwatch.lap_btn.config(state="disabled", bg="#FFB74D")
+                stopped_count += 1
+                
+                # Обновляем увеличенный вид, если этот лыжник отображается
+                if self.current_large_view == stopwatch:
+                    self.show_large_view(stopwatch)
+        
+        # Обновляем статистику
+        self.update_all_laps_display()
+        
+        # Показываем сообщение
+        self.show_message("Стоп всех", f"Остановлено {stopped_count} лыжников")
+    
+    def reset_all_stopwatches(self):
+        """Сбрасывает все секундомеры"""
+        if not self.stopwatches:
+            return
+        
+        # Запрашиваем подтверждение, если есть активные лыжники
+        running_count = sum(1 for sw in self.stopwatches if sw.running)
+        if running_count > 0:
+            if not self.ask_confirmation("Подтверждение сброса", 
+                                       f"Будут сброшены все данные {len(self.stopwatches)} лыжников, включая {running_count} активных. Продолжить?"):
+                return
+        
+        # Сбрасываем всех лыжников
+        for stopwatch in self.stopwatches:
+            # Сохраняем текущее состояние
+            was_running = stopwatch.running
+            
+            # Сбрасываем
+            stopwatch.running = False
+            stopwatch.start_time = None
+            stopwatch.elapsed_time = 0
+            stopwatch.lap_times = []
+            stopwatch.just_completed_lap = False
+            
+            # Обновляем отображение
+            stopwatch.time_label.config(text="00:00:00.00")
+            stopwatch.start_btn.config(state="normal", bg="#4CAF50")
+            stopwatch.stop_btn.config(state="disabled", bg="#E57373")
+            stopwatch.lap_btn.config(state="disabled", bg="#FFB74D")
+            stopwatch.lap_indicator.config(text="Круги: 0")
+            
+            # Если лыжник был активен и отображается крупно, обновляем вид
+            if was_running and self.current_large_view == stopwatch:
+                self.show_large_view(stopwatch)
+        
+        # Очищаем увеличенный вид, если он был
+        if self.current_large_view:
+            self.clear_large_view()
+        
+        # Обновляем отображение кругов
+        self.update_all_laps_display()
+        
+        # Показываем сообщение
+        self.show_message("Сброс всех", f"Сброшены данные всех {len(self.stopwatches)} лыжников")
+    
+    def ask_confirmation(self, title, message):
+        """Запрашивает подтверждение у пользователя"""
+        # Создаем всплывающее окно
+        popup = tk.Toplevel(self.root)
+        popup.title(title)
+        popup.geometry("450x200")
+        popup.configure(bg="#f0f0f0")
+        
+        # Делаем окно модальным
+        popup.transient(self.root)
+        popup.grab_set()
+        
+        # Центрируем окно
+        popup.update_idletasks()
+        width = popup.winfo_width()
+        height = popup.winfo_height()
+        x = (popup.winfo_screenwidth() // 2) - (width // 2)
+        y = (popup.winfo_screenheight() // 2) - (height // 2)
+        popup.geometry(f'{width}x{height}+{x}+{y}')
+        
+        # Заголовок
+        title_label = tk.Label(
+            popup,
+            text=title,
+            font=("Arial", 14, "bold"),
+            bg="#f0f0f0",
+            fg="#f44336"
+        )
+        title_label.pack(pady=10)
+        
+        # Сообщение
+        message_label = tk.Label(
+            popup,
+            text=message,
+            font=("Arial", 11),
+            bg="#f0f0f0",
+            justify="left"
+        )
+        message_label.pack(pady=10, padx=20)
+        
+        # Фрейм для кнопок
+        buttons_frame = tk.Frame(popup, bg="#f0f0f0")
+        buttons_frame.pack(pady=20)
+        
+        # Переменная для результата
+        result = [False]  # Используем список для возможности изменения
+        
+        def on_yes():
+            result[0] = True
+            popup.destroy()
+        
+        def on_no():
+            result[0] = False
+            popup.destroy()
+        
+        # Кнопка Да
+        yes_button = tk.Button(
+            buttons_frame,
+            text="Да",
+            command=on_yes,
+            font=("Arial", 11),
+            bg="#4CAF50",
+            fg="white",
+            width=10
+        )
+        yes_button.pack(side="left", padx=10)
+        
+        # Кнопка Нет
+        no_button = tk.Button(
+            buttons_frame,
+            text="Нет",
+            command=on_no,
+            font=("Arial", 11),
+            bg="#f44336",
+            fg="white",
+            width=10
+        )
+        no_button.pack(side="left", padx=10)
+        
+        # Ждем закрытия окна
+        self.root.wait_window(popup)
+        
+        return result[0]
     
     def create_top_right_panel(self, parent):
         """Создание верхней правой панели (увеличенный вид)"""
@@ -328,6 +612,173 @@ class StopwatchApp:
         
         self.laps_canvas.pack(side="top", fill="both", expand=True, padx=10, pady=(0, 5))
         self.laps_scrollbar.pack(side="bottom", fill="x")
+        
+    def export_to_json(self):
+        """Экспорт всех данных по кругам в JSON файл"""
+        try:
+            # Собираем данные всех лыжников
+            export_data = {
+                "stopwatches": [],
+                "export_timestamp": datetime.now().isoformat()
+            }
+            
+            for stopwatch in self.stopwatches:
+                skier_data = {
+                    "id": stopwatch.number,
+                    "name": stopwatch.get_name(),
+                    "color": stopwatch.get_color(),
+                    "running": stopwatch.running,
+                    "elapsed_time": stopwatch.elapsed_time,
+                    "lap_times": stopwatch.lap_times,
+                    "current_time": None
+                }
+                
+                # Если лыжник работает, вычисляем текущее время
+                if stopwatch.running and stopwatch.start_time:
+                    current_elapsed = stopwatch.elapsed_time + (datetime.now() - stopwatch.start_time).total_seconds()
+                    skier_data["current_time"] = current_elapsed
+                
+                export_data["stopwatches"].append(skier_data)
+            
+            # Открываем диалог сохранения файла
+            from tkinter import filedialog
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".json",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+                initialfile="biathlon_data.json"
+            )
+            
+            if file_path:
+                # Сохраняем данные в файл
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(export_data, f, ensure_ascii=False, indent=2)
+                
+                # Показываем сообщение об успехе
+                self.show_message("Экспорт завершен", f"Данные сохранены в файл:\n{file_path}")
+                
+        except Exception as e:
+            self.show_message("Ошибка экспорта", f"Не удалось экспортировать данные:\n{str(e)}")
+    
+    def import_from_json(self):
+        """Импорт данных по кругам из JSON файла"""
+        try:
+            # Открываем диалог выбора файла
+            from tkinter import filedialog
+            file_path = filedialog.askopenfilename(
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            
+            if not file_path:
+                return  # Пользователь отменил выбор
+            
+            # Загружаем данные из файла
+            with open(file_path, 'r', encoding='utf-8') as f:
+                import_data = json.load(f)
+            
+            # Проверяем структуру данных
+            if "stopwatches" not in import_data:
+                raise ValueError("Некорректный формат файла: отсутствует ключ 'stopwatches'")
+            
+            # Удаляем всех текущих лыжников
+            for stopwatch in self.stopwatches[:]:
+                self.remove_stopwatch(stopwatch)
+            
+            # Создаем новых лыжников из импортированных данных
+            for skier_data in import_data["stopwatches"]:
+                # Создаем нового лыжника
+                stopwatch = Stopwatch(self.stopwatches_frame, len(self.stopwatches) + 1, self)
+                
+                # Устанавливаем имя
+                if "name" in skier_data:
+                    stopwatch.default_name = skier_data["name"]
+                    stopwatch.name_var.set(skier_data["name"])
+                    stopwatch.name_label.config(text=skier_data["name"])
+                
+                # Устанавливаем время кругов
+                if "lap_times" in skier_data:
+                    stopwatch.lap_times = skier_data["lap_times"]
+                    stopwatch.lap_indicator.config(text=f"Круги: {len(stopwatch.lap_times)}")
+                
+                # Устанавливаем прошедшее время
+                if "elapsed_time" in skier_data:
+                    stopwatch.elapsed_time = skier_data["elapsed_time"]
+                
+                # Устанавливаем статус работы
+                if "running" in skier_data and skier_data["running"]:
+                    # Если лыжник был активен, запускаем его
+                    if "current_time" in skier_data and skier_data["current_time"] is not None:
+                        # Устанавливаем прошедшее время
+                        stopwatch.elapsed_time = skier_data["current_time"]
+                        stopwatch.display_time(stopwatch.elapsed_time)
+                    else:
+                        stopwatch.start()
+                
+                # Добавляем в список
+                self.stopwatches.append(stopwatch)
+            
+            # Обновляем отображение кругов
+            self.update_all_laps_display()
+            
+            # Показываем сообщение об успехе
+            self.show_message("Импорт завершен", f"Данные загружены из файла:\n{file_path}")
+            
+        except Exception as e:
+            self.show_message("Ошибка импорта", f"Не удалось импортировать данные:\n{str(e)}")
+    
+    def show_message(self, title, message):
+        """Показать информационное сообщение"""
+        # Создаем всплывающее окно
+        popup = tk.Toplevel(self.root)
+        popup.title(title)
+        popup.geometry("400x200")
+        popup.configure(bg="#f0f0f0")
+        
+        # Делаем окно модальным
+        popup.transient(self.root)
+        popup.grab_set()
+        
+        # Центрируем окно
+        popup.update_idletasks()
+        width = popup.winfo_width()
+        height = popup.winfo_height()
+        x = (popup.winfo_screenwidth() // 2) - (width // 2)
+        y = (popup.winfo_screenheight() // 2) - (height // 2)
+        popup.geometry(f'{width}x{height}+{x}+{y}')
+        
+        # Заголовок
+        title_label = tk.Label(
+            popup,
+            text=title,
+            font=("Arial", 14, "bold"),
+            bg="#f0f0f0",
+            fg="#2196F3"
+        )
+        title_label.pack(pady=10)
+        
+        # Сообщение
+        message_label = tk.Label(
+            popup,
+            text=message,
+            font=("Arial", 11),
+            bg="#f0f0f0",
+            justify="left"
+        )
+        message_label.pack(pady=10, padx=20)
+        
+        # Кнопка OK
+        ok_button = tk.Button(
+            popup,
+            text="OK",
+            command=popup.destroy,
+            font=("Arial", 11),
+            bg="#4CAF50",
+            fg="white",
+            width=10
+        )
+        ok_button.pack(pady=20)
+    
+    # ... остальной код остается без изменений ...
+    # (все остальные методы класса StopwatchApp остаются такими же, как в предыдущем коде)
         
     def get_best_time_for_current_lap(self, lap_number):
         """Возвращает лучшее время на указанном круге"""
