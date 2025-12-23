@@ -191,9 +191,10 @@ class StopwatchApp:
         main_container = tk.Frame(self.root)
         main_container.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # ЛЕВАЯ ПАНЕЛЬ - список лыжников (занимает всю левую сторону)
-        left_panel = tk.Frame(main_container, width=100)  # Увеличил ширину
-        left_panel.pack(side="left", fill="both", expand=True)
+        # ЛЕВАЯ ПАНЕЛЬ - список лыжников (уменьшаем ширину)
+        left_panel = tk.Frame(main_container, width=800)  # Уменьшил ширину
+        left_panel.pack(side="left", fill="both")
+        left_panel.pack_propagate(False)  # Фиксируем ширину
         
         self.create_left_panel(left_panel)
         
@@ -203,7 +204,7 @@ class StopwatchApp:
         
         self.create_top_right_panel(right_panel)
         self.create_bottom_right_panel(right_panel)
-        
+    
     def create_left_panel(self, parent):
         """Создание левой панели со списком лыжников"""
         # Заголовок левой панели
@@ -227,14 +228,14 @@ class StopwatchApp:
         )
         add_button.pack(pady=5)
         
-        # Заголовки колонок
+        # Заголовки колонок (уменьшаем ширины)
         headers_frame = tk.Frame(parent)
         headers_frame.pack(fill="x", pady=5)
         
-        # Колонки с увеличенными ширинами
-        tk.Label(headers_frame, text="Номер и имя", font=("Arial", 11, "bold"), width=25).grid(row=0, column=0, padx=5)
-        tk.Label(headers_frame, text="Время", font=("Arial", 11, "bold"), width=15).grid(row=0, column=1, padx=5)
-        tk.Label(headers_frame, text="Управление", font=("Arial", 11, "bold"), width=55).grid(row=0, column=2, padx=5)
+        # Колонки с уменьшенными ширинами
+        tk.Label(headers_frame, text="Номер и имя", font=("Arial", 11, "bold"), width=15).grid(row=0, column=0, padx=5)
+        tk.Label(headers_frame, text="Время", font=("Arial", 11, "bold"), width=12).grid(row=0, column=1, padx=5)
+        tk.Label(headers_frame, text="Управление", font=("Arial", 11, "bold"), width=25).grid(row=0, column=2, padx=5)
         
         # Фрейм для лыжников с прокруткой
         self.canvas = tk.Canvas(parent)
@@ -251,23 +252,14 @@ class StopwatchApp:
         
         self.canvas.pack(side="left", fill="both", expand=True, padx=(3, 0))
         self.scrollbar.pack(side="right", fill="y")
-        
-        # Кнопка сброса всех лыжников
-        reset_all_button = tk.Button(
-            parent,
-            text="Сбросить всех",
-            command=self.reset_all,
-            font=("Arial", 11),
-            bg="#f44336",
-            fg="white",
-            height=1,
-            width=20
-        )
-        reset_all_button.pack(pady=10)
     
     def create_top_right_panel(self, parent):
         """Создание верхней правой панели (увеличенный вид)"""
-        top_right_panel = tk.Frame(parent, height=380, relief="ridge", borderwidth=2, bg="#f0f0f0")  # Увеличил высоту
+        # Хромакейный зеленый цвет
+        chroma_key_green = "#00FF00"
+        
+        # Увеличиваем высоту и делаем шире
+        top_right_panel = tk.Frame(parent, height=450, relief="ridge", borderwidth=2, bg=chroma_key_green)
         top_right_panel.pack(side="top", fill="both", expand=True, pady=(0, 10))
         top_right_panel.pack_propagate(False)  # Фиксируем высоту
         
@@ -275,25 +267,15 @@ class StopwatchApp:
         top_right_title = tk.Label(
             top_right_panel, 
             text="Увеличенный вид",
-            font=("Arial", 16, "bold"),
-            bg="#f0f0f0"
+            font=("Arial", 18, "bold"),  # Увеличил шрифт
+            bg=chroma_key_green,
+            fg="white"
         )
-        top_right_title.pack(pady=15)
+        top_right_title.pack(pady=20)  # Увеличил отступ
         
-        # Контейнер для увеличенного отображения
-        self.large_view_container = tk.Frame(top_right_panel, bg="#f0f0f0")
-        self.large_view_container.pack(fill="both", expand=True, padx=25, pady=10)  # Увеличил отступы
-        
-        # Изначальное сообщение
-        self.large_view_label = tk.Label(
-            self.large_view_container,
-            text="Выберите лыжника\nдля увеличенного отображения",
-            font=("Arial", 14),
-            bg="#f0f0f0",
-            fg="#666",
-            justify="center"
-        )
-        self.large_view_label.pack(expand=True)
+        # Контейнер для увеличенного отображения (увеличиваем отступы)
+        self.large_view_container = tk.Frame(top_right_panel, bg=chroma_key_green)
+        self.large_view_container.pack(fill="both", expand=True, padx=40, pady=20)  # Увеличил отступы
     
     def create_bottom_right_panel(self, parent):
         """Создание нижней правой панели (круги всех лыжников)"""
@@ -303,7 +285,7 @@ class StopwatchApp:
         # Заголовок нижней правой панели
         bottom_right_title = tk.Label(
             bottom_right_panel, 
-            text="Круги (сортировка: номер → время)",
+            text="Круги (горизонтальный вид: лыжники ↓, круги →)",
             font=("Arial", 14, "bold"),
             bg="#e8f5e8"
         )
@@ -331,9 +313,9 @@ class StopwatchApp:
         )
         self.active_stopwatches_label.pack(side="left", padx=5)
         
-        # Контейнер для отображения кругов с прокруткой
+        # Контейнер для отображения кругов с ГОРИЗОНТАЛЬНОЙ прокруткой
         self.laps_canvas = tk.Canvas(bottom_right_panel, bg="#e8f5e8")
-        self.laps_scrollbar = tk.Scrollbar(bottom_right_panel, orient="vertical", command=self.laps_canvas.yview)
+        self.laps_scrollbar = tk.Scrollbar(bottom_right_panel, orient="horizontal", command=self.laps_canvas.xview)
         self.laps_frame = tk.Frame(self.laps_canvas, bg="#e8f5e8")
         
         self.laps_frame.bind(
@@ -342,10 +324,10 @@ class StopwatchApp:
         )
         
         self.laps_canvas.create_window((0, 0), window=self.laps_frame, anchor="nw")
-        self.laps_canvas.configure(yscrollcommand=self.laps_scrollbar.set, bg="#e8f5e8")
+        self.laps_canvas.configure(xscrollcommand=self.laps_scrollbar.set, bg="#e8f5e8")
         
-        self.laps_canvas.pack(side="left", fill="both", expand=True, padx=(10, 0))
-        self.laps_scrollbar.pack(side="right", fill="y")
+        self.laps_canvas.pack(side="top", fill="both", expand=True, padx=10, pady=(0, 5))
+        self.laps_scrollbar.pack(side="bottom", fill="x")
         
     def get_best_time_for_current_lap(self, lap_number):
         """Возвращает лучшее время на указанном круге"""
@@ -597,12 +579,15 @@ class StopwatchApp:
         """Показывает увеличенный вид выбранного лыжника"""
         self.current_large_view = stopwatch
         
+        # Хромакейный зеленый цвет
+        chroma_key_green = "#00FF00"
+        
         # Очищаем контейнер
         for widget in self.large_view_container.winfo_children():
             widget.destroy()
         
         # Основной контейнер для увеличенного вида
-        main_large_frame = tk.Frame(self.large_view_container, bg="#f0f0f0")
+        main_large_frame = tk.Frame(self.large_view_container, bg=chroma_key_green)
         main_large_frame.pack(fill="both", expand=True)
         
         # Получаем текущий круг
@@ -643,43 +628,39 @@ class StopwatchApp:
             'table_frame': None
         }
         
-        # Первая строка: информация о лыжника
-        first_row_frame = tk.Frame(main_large_frame, bg="#f0f0f0")
-        first_row_frame.pack(fill="x", pady=(0, 25))
+        # Основная строка: идентификатор, имя, время и таблица в одной строке
+        main_row_frame = tk.Frame(main_large_frame, bg=chroma_key_green)
+        main_row_frame.pack(fill="both", expand=True, pady=(0, 30))
         
-        # Левый блок: основная информация о лыжнике
-        left_info_frame = tk.Frame(first_row_frame, bg="#f0f0f0")
-        left_info_frame.pack(side="left", fill="both", expand=True)
+        # Левый блок: идентификатор, имя и время в ОДНОЙ строке
+        left_info_frame = tk.Frame(main_row_frame, bg=chroma_key_green)
+        left_info_frame.pack(side="left", fill="y")
         
-        # Идентификатор и название лыжника
-        id_name_frame = tk.Frame(left_info_frame, bg="#f0f0f0")
-        id_name_frame.pack(fill="x", pady=(0, 15))
+        # Контейнер для всей информации в одной строке
+        info_container = tk.Frame(left_info_frame, bg=chroma_key_green)
+        info_container.pack()
         
         # Идентификатор лыжника
         id_label = tk.Label(
-            id_name_frame,
+            info_container,
             text=f"[{stopwatch.number}]",
             font=("Arial", 16, "bold"),
-            bg="#f0f0f0",
-            fg="#666"
+            bg=chroma_key_green,
+            fg="white"  # Белый текст
         )
-        id_label.pack(side="left", padx=(0, 15))
+        id_label.pack(side="left", padx=(0, 10))
         
-        # Название лыжника
+        # Имя лыжника
         name_label = tk.Label(
-            id_name_frame,
+            info_container,
             text=stopwatch.get_name(),
             font=("Arial", 16, "bold"),
-            bg="#f0f0f0",
+            bg=chroma_key_green,
             fg=stopwatch.get_color()
         )
-        name_label.pack(side="left", padx=(0, 30))
+        name_label.pack(side="left", padx=(0, 20))
         
-        # Время лыжника
-        time_frame = tk.Frame(left_info_frame, bg="#f0f0f0")
-        time_frame.pack(fill="x")
-        
-        # Формируем текст для основного времени
+        # Формируем текст для времени
         time_text = ""
         time_color = stopwatch.get_color()
         
@@ -761,15 +742,15 @@ class StopwatchApp:
             else:
                 time_text = stopwatch.time_label.cget("text")
         
-        # Создаем метку времени и сохраняем ссылку на нее
+        # Метка времени (в одной строке с идентификатором и именем)
         self.large_view_widgets['main_time_label'] = tk.Label(
-            time_frame,
+            info_container,
             text=time_text,
-            font=("Courier New", 28, "bold"),
-            bg="#f0f0f0",
+            font=("Courier New", 20, "bold"),  # Уменьшил шрифт, чтобы влезало в строку
+            bg=chroma_key_green,
             fg=time_color
         )
-        self.large_view_widgets['main_time_label'].pack(side="left")
+        self.large_view_widgets['main_time_label'].pack(side="left", padx=(0, 10))
         
         # Если показываем результат после круга, добавляем таймер
         if show_post_lap:
@@ -777,20 +758,20 @@ class StopwatchApp:
             remaining = max(0, self.post_lap_duration - elapsed)
             
             self.large_view_widgets['timer_label'] = tk.Label(
-                time_frame,
-                text=f"  ({remaining:.1f}с)",
-                font=("Arial", 12),
-                bg="#f0f0f0",
-                fg="#666"
+                info_container,
+                text=f"({remaining:.1f}с)",
+                font=("Arial", 10),
+                bg=chroma_key_green,
+                fg="white"  # Белый текст
             )
-            self.large_view_widgets['timer_label'].pack(side="left", padx=(10, 0))
+            self.large_view_widgets['timer_label'].pack(side="right")
         
-        # Правый блок: таблица сравнения
-        right_table_frame = tk.Frame(first_row_frame, bg="#f0f0f0")
-        right_table_frame.pack(side="right", fill="both", padx=(30, 0))
+        # Правый блок: таблица сравнения (справа в той же строке)
+        right_table_frame = tk.Frame(main_row_frame, bg=chroma_key_green)
+        right_table_frame.pack(side="right", fill="y", padx=(20, 0))
         
         # Создаем таблицу 3x3
-        self.large_view_widgets['table_frame'] = tk.Frame(right_table_frame, bg="#f0f0f0")
+        self.large_view_widgets['table_frame'] = tk.Frame(right_table_frame, bg=chroma_key_green)
         self.large_view_widgets['table_frame'].pack()
         
         # Заголовки столбцов
@@ -801,30 +782,30 @@ class StopwatchApp:
                 self.large_view_widgets['table_frame'],
                 text=header,
                 font=("Arial", 12, "bold"),
-                bg="#f0f0f0",
-                fg="#333",
-                width=5
+                bg=chroma_key_green,
+                fg="white",
+                width=4  # Уменьшил ширину
             )
             else:
                 header_label = tk.Label(
                     self.large_view_widgets['table_frame'],
                     text=header,
                     font=("Arial", 12, "bold"),
-                    bg="#f0f0f0",
-                    fg="#333",
-                    width=15
+                    bg=chroma_key_green,
+                    fg="white",
+                    width=12  # Уменьшил ширину
                 )
-            header_label.grid(row=0, column=col, padx=8, pady=8, sticky="w")
+            header_label.grid(row=0, column=col, padx=6, pady=6, sticky="w")  # Уменьшил отступы
         
         # Заполняем таблицу данными
         self.update_table_data(stopwatch, current_lap, is_racing, show_post_lap, display_skiers)
         
-        # Вторая строка: кнопки управления
-        second_row_frame = tk.Frame(main_large_frame, bg="#f0f0f0")
-        second_row_frame.pack(fill="x", pady=30)
+        # Строка с кнопками управления (ниже основной строки)
+        buttons_frame = tk.Frame(main_large_frame, bg=chroma_key_green)
+        buttons_frame.pack(fill="x", pady=10)
         
         # Создаем кнопки управления
-        large_buttons_frame = tk.Frame(second_row_frame, bg="#f0f0f0")
+        large_buttons_frame = tk.Frame(buttons_frame, bg=chroma_key_green)
         large_buttons_frame.pack()
         
         # Кнопка Старт
@@ -875,7 +856,7 @@ class StopwatchApp:
             text="Скрыть увеличенный вид",
             command=self.clear_large_view,
             font=("Arial", 10),
-            bg="#9E9E9E",
+            bg="#333333",
             fg="white"
         )
         hide_button.pack(pady=10)
@@ -885,6 +866,9 @@ class StopwatchApp:
     
     def update_table_data(self, stopwatch, current_lap, is_racing, show_post_lap=False, display_skiers=None):
         """Обновляет данные в таблице соседей"""
+        # Хромакейный зеленый цвет
+        chroma_key_green = "#00FF00"
+        
         # Если данные не переданы, получаем их
         if display_skiers is None:
             # Если показываем результат после круга, используем замороженные данные
@@ -929,8 +913,8 @@ class StopwatchApp:
                         self.large_view_widgets['table_frame'],
                         text=place_text,
                         font=("Arial", 11, "bold"),
-                        bg="#f0f0f0",
-                        fg=self.get_place_color(position_num) if not is_virtual else "#666"
+                        bg=chroma_key_green,
+                        fg=self.get_place_color(position_num) if not is_virtual else "white"
                     )
                     place_label.grid(row=row, column=0, padx=8, pady=8, sticky="w")
                     self.large_view_widgets['table_labels'].append(place_label)
@@ -944,7 +928,7 @@ class StopwatchApp:
                         self.large_view_widgets['table_frame'],
                         text=name_text,
                         font=("Arial", 11),
-                        bg="#f0f0f0",
+                        bg=chroma_key_green,
                         fg=skier.get_color()
                     )
                     name_label.grid(row=row, column=1, padx=8, pady=8, sticky="w")
@@ -1009,7 +993,7 @@ class StopwatchApp:
                         self.large_view_widgets['table_frame'],
                         text=time_text,
                         font=("Courier New", 11),
-                        bg="#f0f0f0",
+                        bg=chroma_key_green,
                         fg=time_color
                     )
                     time_label.grid(row=row, column=2, padx=8, pady=8, sticky="w")
@@ -1020,8 +1004,8 @@ class StopwatchApp:
                         self.large_view_widgets['table_frame'],
                         text="---",
                         font=("Arial", 11),
-                        bg="#f0f0f0",
-                        fg="#666"
+                        bg=chroma_key_green,
+                        fg="white"  # Белый текст
                     )
                     no_data_label.grid(row=row, column=0, columnspan=3, padx=8, pady=8, sticky="w")
                     self.large_view_widgets['table_labels'].append(no_data_label)
@@ -1033,8 +1017,8 @@ class StopwatchApp:
                     self.large_view_widgets['table_frame'],
                     text="Нет данных",
                     font=("Arial", 11),
-                    bg="#f0f0f0",
-                    fg="#666"
+                    bg=chroma_key_green,
+                    fg="white"  # Белый текст
                 )
                 no_data_label.grid(row=row, column=0, columnspan=3, padx=8, pady=8, sticky="w")
                 self.large_view_widgets['table_labels'].append(no_data_label)
@@ -1112,6 +1096,29 @@ class StopwatchApp:
             # Планируем следующее обновление
             self.root.after(100, lambda: self.update_large_view(stopwatch, show_post_lap))
 
+    def clear_large_view(self):
+        """Очищает увеличенный вид"""
+        self.current_large_view = None
+        self.show_post_lap_result = False
+        
+        # Хромакейный зеленый цвет
+        chroma_key_green = "#00FF00"
+        
+        # Очищаем контейнер
+        for widget in self.large_view_container.winfo_children():
+            widget.destroy()
+        
+        # Показываем первоначальное сообщение
+        self.large_view_label = tk.Label(
+            self.large_view_container,
+            text="Выберите лыжника\nдля увеличенного отображения",
+            font=("Arial", 14),
+            bg=chroma_key_green,
+            fg="white",  # Белый текст
+            justify="center"
+        )
+        self.large_view_label.pack(expand=True)
+
     def get_countdown_color(self, remaining_time):
         """Возвращает цвет для обратного отсчета"""
         if remaining_time < 5:
@@ -1171,7 +1178,8 @@ class StopwatchApp:
                     'stopwatch_name': stopwatch.get_name(),
                     'lap_number': lap_num,
                     'lap_time': lap_time,
-                    'stopwatch_color': stopwatch.get_color()
+                    'stopwatch_color': stopwatch.get_color(),
+                    'stopwatch': stopwatch
                 })
         
         # Сортируем по номеру круга
@@ -1189,7 +1197,7 @@ class StopwatchApp:
         return laps_by_number
     
     def update_all_laps_display(self):
-        """Обновляет отображение всех кругов в правой нижней панели, сгруппированных по номеру круга и отсортированных по времени"""
+        """Обновляет отображение всех кругов в правой нижней панели в горизонтальном формате"""
         # Очищаем текущее отображение
         for widget in self.laps_frame.winfo_children():
             widget.destroy()
@@ -1206,38 +1214,78 @@ class StopwatchApp:
         self.active_stopwatches_label.config(text=f"Активных: {active_stopwatches}")
         
         if laps_by_number:
-            # Отображаем круги, сгруппированные по номеру
+            # Создаем основной контейнер для горизонтального отображения кругов
+            laps_container = tk.Frame(self.laps_frame, bg="#e8f5e8")
+            laps_container.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            # Определяем максимальное количество лыжников на любом круге
+            max_skiers_per_lap = max(len(laps) for laps in laps_by_number.values()) if laps_by_number else 0
+            
+            # Отображаем круги по горизонтали (вправо)
             for lap_number in sorted(laps_by_number.keys()):
-                # Заголовок для группы кругов с одинаковым номером
-                group_header = tk.Label(
-                    self.laps_frame,
-                    text=f"Круг №{lap_number}:",
-                    font=("Arial", 11, "bold"),
-                    bg="#e8f5e8",
-                    fg="#2E7D32",
-                    anchor="w"
-                )
-                group_header.pack(fill="x", pady=(8, 3), padx=5)
+                # Контейнер для одного круга (вертикальная колонка)
+                lap_column = tk.Frame(laps_container, bg="#e8f5e8", relief="ridge", borderwidth=1)
+                lap_column.pack(side="left", fill="both", expand=True, padx=5, pady=5)
                 
-                # Отображаем все круги с этим номером, отсортированные по времени
-                for lap_info in laps_by_number[lap_number]:
+                # Заголовок круга
+                lap_header = tk.Label(
+                    lap_column,
+                    text=f"Круг {lap_number}",
+                    font=("Arial", 12, "bold"),
+                    bg="#2E7D32",
+                    fg="white",
+                    width=15,
+                    relief="raised"
+                )
+                lap_header.pack(fill="x", pady=(0, 5))
+                
+                # Получаем лыжников на этом круге
+                lap_skiers = laps_by_number[lap_number]
+                
+                # Отображаем лыжников вертикально (сверху вниз)
+                for skier_info in lap_skiers:
                     # Форматируем время
-                    time_str = self.format_lap_time(lap_info['lap_time'])
+                    time_str = self.format_lap_time(skier_info['lap_time'])
                     
-                    # Создаем метку для круга с цветом лыжника
-                    lap_text = f"  {lap_info['stopwatch_name']}: {time_str}"
-                    lap_label = tk.Label(
-                        self.laps_frame,
-                        text=lap_text,
-                        font=("Courier New", 10),
+                    # Создаем фрейм для одного лыжника на круге
+                    skier_frame = tk.Frame(lap_column, bg="#e8f5e8", relief="flat")
+                    skier_frame.pack(fill="x", pady=2)
+                    
+                    # Имя лыжника (сокращаем если слишком длинное)
+                    skier_name = skier_info['stopwatch_name']
+                    if len(skier_name) > 15:
+                        skier_name = skier_name[:12] + "..."
+                    
+                    name_label = tk.Label(
+                        skier_frame,
+                        text=skier_name,
+                        font=("Arial", 10),
                         bg="#e8f5e8",
-                        fg=lap_info['stopwatch_color'],
+                        fg=skier_info['stopwatch_color'],
+                        anchor="w",
+                        width=12
+                    )
+                    name_label.pack(side="left", padx=(5, 2))
+                    
+                    # Время круга
+                    time_label = tk.Label(
+                        skier_frame,
+                        text=time_str,
+                        font=("Courier New", 9),
+                        bg="#e8f5e8",
+                        fg=skier_info['stopwatch_color'],
                         anchor="w"
                     )
-                    lap_label.pack(fill="x", pady=1, padx=15)  # Увеличил отступы
+                    time_label.pack(side="left", padx=(2, 5))
+                
+                # Если в этом круге меньше лыжников, чем в максимальном, добавляем пустые строки
+                for _ in range(max_skiers_per_lap - len(lap_skiers)):
+                    empty_frame = tk.Frame(lap_column, bg="#e8f5e8", height=25)
+                    empty_frame.pack(fill="x", pady=2)
+                    empty_frame.pack_propagate(False)
         
-        # Если нет кругов ни у одного лыжника
-        if not laps_by_number:
+        else:
+            # Если нет кругов ни у одного лыжника
             no_laps_label = tk.Label(
                 self.laps_frame,
                 text="Круги еще не зафиксированы\nнажмите кнопку 'Круг'\nво время работы секундомера",
@@ -1249,16 +1297,6 @@ class StopwatchApp:
             no_laps_label.pack(expand=True, pady=20)
         
         # Обновляем увеличенный вид, если он активен
-        if self.current_large_view:
-            # Проверяем, не показывается ли результат после круга
-            show_post_lap = False
-            if self.current_large_view.just_completed_lap and self.current_large_view.lap_completion_time:
-                elapsed = (datetime.now() - self.current_large_view.lap_completion_time).total_seconds()
-                if elapsed < self.post_lap_duration:
-                    show_post_lap = True
-            
-            self.show_large_view(self.current_large_view)
-
         if self.current_large_view:
             # Проверяем, не показывается ли результат после круга
             show_post_lap = False
