@@ -349,8 +349,9 @@ class Stopwatch:
             # Обновляем отображение кругов
             self.app.update_all_laps_display()
             
-            # Обновляем увеличенный вид, если этот лыжник отображается
+            # Если этот лыжник отображается в увеличенном виде
             if self.app.current_large_view == self:
+                # Полностью пересоздаем вид с замороженным кругом
                 self.app.show_large_view(self)
     
     def format_time(self, seconds):

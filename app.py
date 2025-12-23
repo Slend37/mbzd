@@ -11,6 +11,7 @@ class StopwatchApp:
         
         # Список для хранения всех секундомеров (лыжников)
         self.stopwatches = []
+        self.frozen_lap_data = None
         self.current_large_view = None  # Текущий отображаемый крупно лыжник
         
         # Для хранения информации об обратном отсчете
@@ -21,8 +22,168 @@ class StopwatchApp:
         self.post_lap_start_time = None  # Время начала показа результата после круга
         self.post_lap_duration = 5  # Длительность показа результата после круга (сек)
         
+        # Таймер для обновления таблицы
+        self.table_update_interval = 1000  # Обновляем каждую секунду (1000 мс)
+        
         # Создаем основной интерфейс
         self.create_widgets()
+        
+        # Изначально создаем 5 лыжников
+        for i in range(5):
+            self.add_stopwatch()
+        
+        # Запускаем таймер обновления таблицы
+        self.start_table_update_timer()
+        
+    def start_table_update_timer(self):
+        """Запускает таймер для периодического обновления таблицы соседей"""
+        self.update_table_timer()
+        
+    def update_table_timer(self):
+        """Периодическое обновление таблицы соседей"""
+        if self.current_large_view:
+            # Обновляем увеличенный вид (таблица будет обновлена внутри show_large_view)
+            show_post_lap = False
+            if self.current_large_view.just_completed_lap and self.current_large_view.lap_completion_time:
+                elapsed = (datetime.now() - self.current_large_view.lap_completion_time).total_seconds()
+                if elapsed < self.post_lap_duration:
+                    show_post_lap = True
+            
+            # Получаем данные для обновления таблицы
+            stopwatch = self.current_large_view
+            current_lap = stopwatch.get_current_lap() + 1
+            if show_post_lap:
+                current_lap = len(stopwatch.lap_times)
+            
+            is_racing = stopwatch.running and (current_lap > len(stopwatch.lap_times))
+            
+            # Обновляем только таблицу соседей
+            self.update_neighbors_table(stopwatch, current_lap, is_racing, show_post_lap)
+        
+        # Планируем следующее обновление
+        self.root.after(self.table_update_interval, self.update_table_timer)
+    
+    def update_neighbors_table(self, stopwatch, current_lap, is_racing, show_post_lap=False):
+        """Обновляет только таблицу соседей в увеличенном виде"""
+        if not hasattr(self, 'table_frame') or not self.table_frame:
+            return
+            
+        # Получаем обновленные данные для таблицы
+        best_skier, display_skiers, position = self.get_display_neighbors(stopwatch, current_lap, is_racing)
+        
+        # Очищаем таблицу (кроме заголовков)
+        for widget in self.table_frame.winfo_children():
+            if widget.grid_info()['row'] > 0:  # Оставляем только заголовки (строка 0)
+                widget.destroy()
+        
+        # Заполняем таблицу обновленными данными
+        if display_skiers and len(display_skiers) > 0:
+            # Есть данные для отображения
+            for i in range(3):
+                row = i + 1
+                
+                if i < len(display_skiers):
+                    skier_info = display_skiers[i]
+                    skier = skier_info['stopwatch']
+                    lap_time = skier_info['lap_time']
+                    position_num = skier_info['position']
+                    is_current = (skier == stopwatch)
+                    is_best = skier_info.get('is_best', False)
+                    
+                    # Получаем лучшее время на этом круге
+                    best_time_for_lap, best_skier_for_lap, _ = self.get_best_time_for_current_lap(current_lap)
+                    
+                    # Место
+                    place_label = tk.Label(
+                        self.table_frame,
+                        text=f"[{position_num}]",
+                        font=("Arial", 11, "bold"),
+                        bg="#f0f0f0",
+                        fg=self.get_place_color(position_num)
+                    )
+                    place_label.grid(row=row, column=0, padx=8, pady=8, sticky="w")
+                    
+                    # Имя лыжника
+                    name_text = skier.get_name()
+                    if is_current:
+                        name_text = f"→ {name_text}"
+                        
+                    name_label = tk.Label(
+                        self.table_frame,
+                        text=name_text,
+                        font=("Arial", 11),
+                        bg="#f0f0f0",
+                        fg=skier.get_color()
+                    )
+                    name_label.grid(row=row, column=1, padx=8, pady=8, sticky="w")
+                    
+                    # Время или отставание
+                    if is_best:
+                        # Лучшее время круга
+                        time_text = self.format_lap_time(lap_time)
+                        time_color = "#2196F3"  # Синий для рекорда
+                    elif is_racing and is_current:
+                        # Текущий лыжник еще бежит - показываем его текущее время
+                        if stopwatch.running:
+                            current_time = (stopwatch.elapsed_time + 
+                                        (datetime.now() - stopwatch.start_time).total_seconds())
+                            if best_time_for_lap is not None:
+                                time_diff = current_time - best_time_for_lap
+                                if time_diff < 0:
+                                    time_text = f"-{self.format_lap_time(abs(time_diff))}"
+                                    time_color = "#4CAF50"
+                                else:
+                                    time_text = f"+{self.format_lap_time(time_diff)}"
+                                    time_color = self.get_difference_color(time_diff)
+                            else:
+                                time_text = self.format_lap_time(current_time)
+                                time_color = skier.get_color()
+                        else:
+                            time_text = self.format_lap_time(lap_time)
+                            time_color = skier.get_color()
+                    elif best_time_for_lap is not None:
+                        # Отставание от лучшего времени
+                        time_diff = lap_time - best_time_for_lap
+                        if time_diff == 0:
+                            time_text = self.format_lap_time(lap_time)
+                            time_color = "#2196F3"  # Синий, если время совпадает с лучшим
+                        else:
+                            time_text = f"+{self.format_lap_time(time_diff)}"
+                            time_color = self.get_difference_color(time_diff)
+                    else:
+                        time_text = self.format_lap_time(lap_time)
+                        time_color = skier.get_color()
+                    
+                    time_label = tk.Label(
+                        self.table_frame,
+                        text=time_text,
+                        font=("Courier New", 11),
+                        bg="#f0f0f0",
+                        fg=time_color
+                    )
+                    time_label.grid(row=row, column=2, padx=8, pady=8, sticky="w")
+                else:
+                    # Нет данных для этой строки
+                    no_data_label = tk.Label(
+                        self.table_frame,
+                        text="---",
+                        font=("Arial", 11),
+                        bg="#f0f0f0",
+                        fg="#666"
+                    )
+                    no_data_label.grid(row=row, column=0, columnspan=3, padx=8, pady=8, sticky="w")
+        else:
+            # Нет данных вообще - показываем сообщение
+            for i in range(3):
+                row = i + 1
+                no_data_label = tk.Label(
+                    self.table_frame,
+                    text="Нет данных",
+                    font=("Arial", 11),
+                    bg="#f0f0f0",
+                    fg="#666"
+                )
+                no_data_label.grid(row=row, column=0, columnspan=3, padx=8, pady=8, sticky="w")
         
     def create_widgets(self):
         """Создание интерфейса приложения"""
@@ -31,7 +192,7 @@ class StopwatchApp:
         main_container.pack(fill="both", expand=True, padx=10, pady=10)
         
         # ЛЕВАЯ ПАНЕЛЬ - список лыжников (занимает всю левую сторону)
-        left_panel = tk.Frame(main_container, width=700)  # Увеличил ширину
+        left_panel = tk.Frame(main_container, width=100)  # Увеличил ширину
         left_panel.pack(side="left", fill="both", expand=True)
         
         self.create_left_panel(left_panel)
@@ -42,10 +203,6 @@ class StopwatchApp:
         
         self.create_top_right_panel(right_panel)
         self.create_bottom_right_panel(right_panel)
-        
-        # Изначально создаем 5 лыжников
-        for i in range(5):
-            self.add_stopwatch()
         
     def create_left_panel(self, parent):
         """Создание левой панели со списком лыжников"""
@@ -92,7 +249,7 @@ class StopwatchApp:
         self.canvas.create_window((0, 0), window=self.stopwatches_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         
-        self.canvas.pack(side="left", fill="both", expand=True, padx=(5, 0))
+        self.canvas.pack(side="left", fill="both", expand=True, padx=(3, 0))
         self.scrollbar.pack(side="right", fill="y")
         
         # Кнопка сброса всех лыжников
@@ -246,90 +403,161 @@ class StopwatchApp:
         return selected_position, skiers_on_lap, neighbors
     
     def get_display_neighbors(self, selected_skier, current_lap, is_racing=True):
-        """Возвращает лыжников для отображения в таблице"""
+        """Возвращает лыжников для отображения в таблице с виртуальными позициями"""
         # Получаем лучший результат на текущем круге
         best_time, best_skier, best_color = self.get_best_time_for_current_lap(current_lap)
         
-        if not best_skier:
-            return None, [], None
+        # Получаем всех лыжников, которые уже завершили этот круг
+        completed_skiers = []
+        for stopwatch in self.stopwatches:
+            if current_lap <= len(stopwatch.lap_times):
+                completed_skiers.append({
+                    'stopwatch': stopwatch,
+                    'lap_time': stopwatch.lap_times[current_lap - 1],
+                    'position': None
+                })
         
-        # Если лыжник еще не завершил круг
-        if is_racing or selected_skier.get_current_lap() < current_lap:
-            # Находим позицию лыжника среди тех, кто уже завершил круг
-            position, all_skiers, neighbors = self.get_skier_position_on_lap(selected_skier, current_lap)
-            
-            if not all_skiers:
-                # Никто еще не завершил круг
-                return best_skier, [], None
-            
-            # Находим соседей для отображения
-            display_skiers = []
-            
-            # 1. Лучший лыжник круга
-            display_skiers.append({
-                'stopwatch': best_skier,
-                'lap_time': best_time,
-                'position': 1,
-                'is_best': True
-            })
-            
-            # 2. Ближайший лыжник перед текущим (если есть)
-            if position and position > 1:
-                # Ищем лыжника на позиции перед текущим
-                for skier in all_skiers:
-                    if skier['position'] == position - 1:
-                        display_skiers.append(skier)
-                        break
-            
-            # 3. Ближайший лыжник после текущего (если есть)
-            if position and position < len(all_skiers):
-                # Ищем лыжника на позиции после текущего
-                for skier in all_skiers:
-                    if skier['position'] == position + 1:
-                        display_skiers.append(skier)
-                        break
-            
-            # Если не нашли соседей, берем следующих после лучшего
-            while len(display_skiers) < 3 and len(display_skiers) < len(all_skiers):
-                next_pos = len(display_skiers) + 1
-                for skier in all_skiers:
-                    if skier['position'] == next_pos and skier['stopwatch'] != best_skier:
-                        display_skiers.append(skier)
-                        break
-            
-            return best_skier, display_skiers, position
+        # Сортируем по времени круга
+        completed_skiers.sort(key=lambda x: x['lap_time'])
         
-        else:
-            # Лыжник завершил круг, показываем его результат
-            position, all_skiers, neighbors = self.get_skier_position_on_lap(selected_skier, current_lap)
-            
-            if not all_skiers:
-                return best_skier, [], None
-            
+        # Назначаем позиции
+        for i, skier in enumerate(completed_skiers, 1):
+            skier['position'] = i
+        
+        # Если есть лыжники, завершившие круг, или есть лыжник, который еще бежит
+        if completed_skiers or (selected_skier.running and is_racing):
             display_skiers = []
+            added_stopwatches = set()
             
-            # 1. Лучший лыжник круга
-            display_skiers.append({
-                'stopwatch': best_skier,
-                'lap_time': best_time,
-                'position': 1,
-                'is_best': True
-            })
+            # Вычисляем текущее время лыжника, если он еще бежит
+            current_skier_time = None
+            if selected_skier.running and current_lap > len(selected_skier.lap_times):
+                current_skier_time = (selected_skier.elapsed_time + 
+                                    (datetime.now() - selected_skier.start_time).total_seconds())
             
-            # 2. Текущий лыжник
-            for skier in all_skiers:
-                if skier['stopwatch'] == selected_skier:
-                    display_skiers.append(skier)
-                    break
-            
-            # 3. Лыжник после текущего (если есть)
-            if position and position < len(all_skiers):
-                for skier in all_skiers:
-                    if skier['position'] == position + 1:
-                        display_skiers.append(skier)
+            # Если лыжник еще бежит (не завершил текущий круг)
+            if is_racing:
+                # Собираем всех "виртуальных" участников на этом круге
+                virtual_skiers = completed_skiers.copy()
+                
+                # Добавляем текущего лыжника с его текущим временем
+                if current_skier_time is not None:
+                    virtual_skiers.append({
+                        'stopwatch': selected_skier,
+                        'lap_time': current_skier_time,
+                        'position': None,
+                        'is_current': True,
+                        'is_virtual': True
+                    })
+                
+                # Сортируем виртуальных участников по времени
+                virtual_skiers.sort(key=lambda x: x['lap_time'])
+                
+                # Назначаем виртуальные позиции
+                for i, skier in enumerate(virtual_skiers, 1):
+                    skier['virtual_position'] = i
+                
+                # Находим виртуальную позицию текущего лыжника
+                current_virtual_position = None
+                for skier in virtual_skiers:
+                    if skier.get('is_current'):
+                        current_virtual_position = skier['virtual_position']
                         break
+                
+                if current_virtual_position:
+                    # Собираем отображаемых лыжников вокруг текущей позиции
+                    positions_to_show = []
+                    
+                    # Всегда показываем лучшего (если есть)
+                    if best_skier:
+                        positions_to_show.append(1)
+                    
+                    # Показываем лыжников вокруг текущей позиции
+                    positions_to_show.append(current_virtual_position - 1)  # Перед текущим
+                    positions_to_show.append(current_virtual_position)      # Текущий
+                    positions_to_show.append(current_virtual_position + 1)  # После текущего
+                    
+                    # Убираем некорректные позиции (меньше 1 или больше максимума)
+                    positions_to_show = [pos for pos in positions_to_show 
+                                    if 1 <= pos <= len(virtual_skiers)]
+                    
+                    # Оставляем уникальные позиции
+                    positions_to_show = list(set(positions_to_show))
+                    positions_to_show.sort()
+                    
+                    # Берем до 3 позиций
+                    positions_to_show = positions_to_show[:3]
+                    
+                    # Собираем лыжников для отображения
+                    for pos in positions_to_show:
+                        skier_info = virtual_skiers[pos - 1]
+                        is_current = skier_info.get('is_current', False)
+                        is_best = (skier_info['stopwatch'] == best_skier)
+                        
+                        display_skiers.append({
+                            'stopwatch': skier_info['stopwatch'],
+                            'lap_time': skier_info['lap_time'],
+                            'position': skier_info.get('position', skier_info['virtual_position']),
+                            'is_current': is_current,
+                            'is_best': is_best,
+                            'is_virtual': skier_info.get('is_virtual', False)
+                        })
+                    
+                    return best_skier, display_skiers, current_virtual_position
             
-            return best_skier, display_skiers, position
+            # Если лыжник уже завершил этот круг
+            else:
+                # Находим фактическую позицию текущего лыжника
+                current_actual_position = None
+                for skier in completed_skiers:
+                    if skier['stopwatch'] == selected_skier:
+                        current_actual_position = skier['position']
+                        break
+                
+                if current_actual_position:
+                    # Определяем, какие позиции показывать
+                    positions_to_show = []
+                    
+                    # Всегда показываем лучшего (если есть и не текущий)
+                    if best_skier and best_skier != selected_skier:
+                        positions_to_show.append(1)
+                    
+                    # Показываем текущего лыжника
+                    positions_to_show.append(current_actual_position)
+                    
+                    # Показываем лыжников вокруг текущего
+                    positions_to_show.append(current_actual_position - 1)  # Перед текущим
+                    positions_to_show.append(current_actual_position + 1)  # После текущего
+                    
+                    # Убираем некорректные позиции
+                    positions_to_show = [pos for pos in positions_to_show 
+                                    if 1 <= pos <= len(completed_skiers)]
+                    
+                    # Оставляем уникальные позиции
+                    positions_to_show = list(set(positions_to_show))
+                    positions_to_show.sort()
+                    
+                    # Берем до 3 позиций
+                    positions_to_show = positions_to_show[:3]
+                    
+                    # Собираем лыжников для отображения
+                    for pos in positions_to_show:
+                        skier_info = completed_skiers[pos - 1]
+                        is_current = (skier_info['stopwatch'] == selected_skier)
+                        is_best = (skier_info['stopwatch'] == best_skier)
+                        
+                        display_skiers.append({
+                            'stopwatch': skier_info['stopwatch'],
+                            'lap_time': skier_info['lap_time'],
+                            'position': skier_info['position'],
+                            'is_current': is_current,
+                            'is_best': is_best
+                        })
+                    
+                    return best_skier, display_skiers, current_actual_position
+        
+        # Если нет данных для отображения
+        return None, [], None
     
     def add_stopwatch(self):
         """Добавляет нового лыжника"""
@@ -387,17 +615,37 @@ class StopwatchApp:
             elapsed = (datetime.now() - stopwatch.lap_completion_time).total_seconds()
             if elapsed < self.post_lap_duration:
                 show_post_lap = True
+                # Замораживаем на только что завершенном круге
                 current_lap = len(stopwatch.lap_times)  # Только что завершенный круг
                 is_racing = False
-            else:
-                stopwatch.just_completed_lap = False
+                # Сохраняем данные этого круга для заморозки
+                self.frozen_lap_data = {
+                    'lap_number': current_lap,
+                    'display_skiers': None,
+                    'best_skier': None,
+                    'position': None
+                }
         
         # Получаем данные для отображения
         best_skier, display_skiers, position = self.get_display_neighbors(stopwatch, current_lap, is_racing)
         
-        # Первая строка: информация о лыжнике
+        # Сохраняем замороженные данные если показываем результат
+        if show_post_lap and hasattr(self, 'frozen_lap_data'):
+            self.frozen_lap_data['display_skiers'] = display_skiers
+            self.frozen_lap_data['best_skier'] = best_skier
+            self.frozen_lap_data['position'] = position
+        
+        # Сохраняем ссылки на виджеты для обновления
+        self.large_view_widgets = {
+            'main_time_label': None,
+            'timer_label': None,
+            'table_labels': [],  # Будет хранить список виджетов таблицы
+            'table_frame': None
+        }
+        
+        # Первая строка: информация о лыжника
         first_row_frame = tk.Frame(main_large_frame, bg="#f0f0f0")
-        first_row_frame.pack(fill="x", pady=(0, 25))  # Увеличил отступ
+        first_row_frame.pack(fill="x", pady=(0, 25))
         
         # Левый блок: основная информация о лыжнике
         left_info_frame = tk.Frame(first_row_frame, bg="#f0f0f0")
@@ -405,7 +653,7 @@ class StopwatchApp:
         
         # Идентификатор и название лыжника
         id_name_frame = tk.Frame(left_info_frame, bg="#f0f0f0")
-        id_name_frame.pack(fill="x", pady=(0, 15))  # Увеличил отступ
+        id_name_frame.pack(fill="x", pady=(0, 15))
         
         # Идентификатор лыжника
         id_label = tk.Label(
@@ -415,7 +663,7 @@ class StopwatchApp:
             bg="#f0f0f0",
             fg="#666"
         )
-        id_label.pack(side="left", padx=(0, 15))  # Увеличил отступ
+        id_label.pack(side="left", padx=(0, 15))
         
         # Название лыжника
         name_label = tk.Label(
@@ -425,7 +673,7 @@ class StopwatchApp:
             bg="#f0f0f0",
             fg=stopwatch.get_color()
         )
-        name_label.pack(side="left", padx=(0, 30))  # Увеличил отступ
+        name_label.pack(side="left", padx=(0, 30))
         
         # Время лыжника
         time_frame = tk.Frame(left_info_frame, bg="#f0f0f0")
@@ -435,14 +683,15 @@ class StopwatchApp:
         time_text = ""
         time_color = stopwatch.get_color()
         
-        if best_skier and best_skier.lap_times and current_lap <= len(best_skier.lap_times):
-            best_time = best_skier.lap_times[current_lap - 1]
-            
+        # Получаем лучшее время на текущем круге
+        best_time_for_lap, best_skier_for_lap, _ = self.get_best_time_for_current_lap(current_lap)
+        
+        if best_skier_for_lap and best_time_for_lap is not None:
             if stopwatch.running and current_lap > len(stopwatch.lap_times):
                 # Лыжник еще бежит текущий круг
                 current_time = (stopwatch.elapsed_time + 
                                (datetime.now() - stopwatch.start_time).total_seconds())
-                time_diff = current_time - best_time
+                time_diff = current_time - best_time_for_lap
                 
                 if time_diff < 0:
                     time_text = f"-{self.format_lap_time(abs(time_diff))}"
@@ -453,12 +702,44 @@ class StopwatchApp:
             elif not is_racing and current_lap <= len(stopwatch.lap_times):
                 # Лыжник завершил круг
                 skier_time = stopwatch.lap_times[current_lap - 1]
-                time_diff = skier_time - best_time
+                time_diff = skier_time - best_time_for_lap
                 
                 if show_post_lap:
-                    # Показываем абсолютное время в течение 5 секунд
-                    time_text = self.format_lap_time(skier_time)
-                    time_color = stopwatch.get_color()
+                    # Во время показа результата
+                    if best_skier_for_lap == stopwatch:
+                        # Если это лидер - показываем преимущество над 2-м местом
+                        # Находим время второго места
+                        second_place_time = None
+                        # Получаем всех лыжников на этом круге
+                        completed_skiers = []
+                        for sw in self.stopwatches:
+                            if current_lap <= len(sw.lap_times):
+                                completed_skiers.append({
+                                    'stopwatch': sw,
+                                    'lap_time': sw.lap_times[current_lap - 1]
+                                })
+                        
+                        # Сортируем по времени
+                        completed_skiers.sort(key=lambda x: x['lap_time'])
+                        
+                        # Находим время второго места (если есть)
+                        if len(completed_skiers) >= 2:
+                            second_place_time = completed_skiers[1]['lap_time']
+                            advantage = second_place_time - skier_time
+                            time_text = f"-{self.format_lap_time(advantage)}"
+                            time_color = "#4CAF50"  # Зеленый - преимущество
+                        else:
+                            # Нет второго места - показываем абсолютное время
+                            time_text = self.format_lap_time(skier_time)
+                            time_color = "#2196F3"  # Синий - рекорд
+                    else:
+                        # Если не лидер - показываем отставание от лидера
+                        if time_diff < 0:
+                            time_text = f"-{self.format_lap_time(abs(time_diff))}"
+                            time_color = "#4CAF50"
+                        else:
+                            time_text = f"+{self.format_lap_time(time_diff)}"
+                            time_color = self.get_difference_color(time_diff)
                 else:
                     if time_diff < 0:
                         time_text = f"-{self.format_lap_time(abs(time_diff))}"
@@ -472,120 +753,75 @@ class StopwatchApp:
             else:
                 time_text = stopwatch.time_label.cget("text")
         else:
-            time_text = stopwatch.time_label.cget("text")
+            # Если нет лучшего времени на круге, показываем текущее время лыжника
+            if stopwatch.running:
+                current_time = (stopwatch.elapsed_time + 
+                               (datetime.now() - stopwatch.start_time).total_seconds())
+                time_text = stopwatch.format_time(current_time)
+            else:
+                time_text = stopwatch.time_label.cget("text")
         
-        self.main_time_label = tk.Label(
+        # Создаем метку времени и сохраняем ссылку на нее
+        self.large_view_widgets['main_time_label'] = tk.Label(
             time_frame,
             text=time_text,
             font=("Courier New", 28, "bold"),
             bg="#f0f0f0",
             fg=time_color
         )
-        self.main_time_label.pack(side="left")
+        self.large_view_widgets['main_time_label'].pack(side="left")
         
         # Если показываем результат после круга, добавляем таймер
         if show_post_lap:
             elapsed = (datetime.now() - stopwatch.lap_completion_time).total_seconds()
             remaining = max(0, self.post_lap_duration - elapsed)
             
-            timer_label = tk.Label(
+            self.large_view_widgets['timer_label'] = tk.Label(
                 time_frame,
                 text=f"  ({remaining:.1f}с)",
                 font=("Arial", 12),
                 bg="#f0f0f0",
                 fg="#666"
             )
-            timer_label.pack(side="left", padx=(10, 0))
+            self.large_view_widgets['timer_label'].pack(side="left", padx=(10, 0))
         
         # Правый блок: таблица сравнения
         right_table_frame = tk.Frame(first_row_frame, bg="#f0f0f0")
-        right_table_frame.pack(side="right", fill="both", padx=(30, 0))  # Увеличил отступ
+        right_table_frame.pack(side="right", fill="both", padx=(30, 0))
         
-        # Создаем таблицу 3x3 с увеличенными размерами
-        table_frame = tk.Frame(right_table_frame, bg="#f0f0f0")
-        table_frame.pack()
+        # Создаем таблицу 3x3
+        self.large_view_widgets['table_frame'] = tk.Frame(right_table_frame, bg="#f0f0f0")
+        self.large_view_widgets['table_frame'].pack()
         
         # Заголовки столбцов
-        headers = ["Место", "Лыжник", "Время"]
+        headers = ["#", "Лыжник", "Время"]
         for col, header in enumerate(headers):
-            header_label = tk.Label(
-                table_frame,
+            if header == "#":
+                header_label = tk.Label(
+                self.large_view_widgets['table_frame'],
                 text=header,
                 font=("Arial", 12, "bold"),
                 bg="#f0f0f0",
                 fg="#333",
-                width=20  # Увеличил ширину
+                width=5
             )
-            header_label.grid(row=0, column=col, padx=8, pady=8, sticky="w")  # Увеличил отступы
+            else:
+                header_label = tk.Label(
+                    self.large_view_widgets['table_frame'],
+                    text=header,
+                    font=("Arial", 12, "bold"),
+                    bg="#f0f0f0",
+                    fg="#333",
+                    width=15
+                )
+            header_label.grid(row=0, column=col, padx=8, pady=8, sticky="w")
         
         # Заполняем таблицу данными
-        for i in range(3):
-            row = i + 1
-            
-            if i < len(display_skiers):
-                skier_info = display_skiers[i]
-                skier = skier_info['stopwatch']
-                lap_time = skier_info['lap_time']
-                position = skier_info['position']
-                
-                # Лучшее время на круге
-                if best_skier and current_lap <= len(best_skier.lap_times):
-                    best_time = best_skier.lap_times[current_lap - 1]
-                    time_diff = lap_time - best_time
-                    
-                    # Место
-                    place_label = tk.Label(
-                        table_frame,
-                        text=f"[{position}]",
-                        font=("Arial", 11, "bold"),
-                        bg="#f0f0f0",
-                        fg=self.get_place_color(position)
-                    )
-                    place_label.grid(row=row, column=0, padx=8, pady=8, sticky="w")
-                    
-                    # Имя лыжника
-                    name_label = tk.Label(
-                        table_frame,
-                        text=skier.get_name(),
-                        font=("Arial", 11),
-                        bg="#f0f0f0",
-                        fg=skier.get_color()
-                    )
-                    name_label.grid(row=row, column=1, padx=8, pady=8, sticky="w")
-                    
-                    # Время или отставание
-                    if position == 1:
-                        # Лучшее время круга
-                        time_text = self.format_lap_time(lap_time)
-                        time_color = "#2196F3"  # Синий для рекорда
-                    else:
-                        # Отставание от лучшего времени
-                        time_text = f"+{self.format_lap_time(time_diff)}"
-                        time_color = self.get_difference_color(time_diff)
-                    
-                    time_label = tk.Label(
-                        table_frame,
-                        text=time_text,
-                        font=("Courier New", 11),
-                        bg="#f0f0f0",
-                        fg=time_color
-                    )
-                    time_label.grid(row=row, column=2, padx=8, pady=8, sticky="w")
-            else:
-                # Нет данных
-                no_data_label = tk.Label(
-                    table_frame,
-                    text="---",
-                    font=("Arial", 11),
-                    bg="#f0f0f0",
-                    fg="#666",
-                    width=20
-                )
-                no_data_label.grid(row=row, column=0, columnspan=3, padx=8, pady=8, sticky="w")
+        self.update_table_data(stopwatch, current_lap, is_racing, show_post_lap, display_skiers)
         
         # Вторая строка: кнопки управления
         second_row_frame = tk.Frame(main_large_frame, bg="#f0f0f0")
-        second_row_frame.pack(fill="x", pady=30)  # Увеличил отступ
+        second_row_frame.pack(fill="x", pady=30)
         
         # Создаем кнопки управления
         large_buttons_frame = tk.Frame(second_row_frame, bg="#f0f0f0")
@@ -596,7 +832,7 @@ class StopwatchApp:
             large_buttons_frame,
             text="СТАРТ",
             command=stopwatch.start,
-            width=12,  # Увеличил ширину
+            width=12,
             height=1,
             bg="#4CAF50" if not stopwatch.running else "#81C784",
             fg="white",
@@ -647,6 +883,235 @@ class StopwatchApp:
         # Запускаем обновление времени в увеличенном виде
         self.update_large_view(stopwatch, show_post_lap)
     
+    def update_table_data(self, stopwatch, current_lap, is_racing, show_post_lap=False, display_skiers=None):
+        """Обновляет данные в таблице соседей"""
+        # Если данные не переданы, получаем их
+        if display_skiers is None:
+            # Если показываем результат после круга, используем замороженные данные
+            if show_post_lap and hasattr(self, 'frozen_lap_data'):
+                display_skiers = self.frozen_lap_data['display_skiers']
+                best_skier = self.frozen_lap_data['best_skier']
+                position = self.frozen_lap_data['position']
+            else:
+                best_skier, display_skiers, position = self.get_display_neighbors(stopwatch, current_lap, is_racing)
+        
+        # Очищаем предыдущие виджеты таблицы (кроме заголовков)
+        for widget in self.large_view_widgets.get('table_labels', []):
+            if widget and widget.winfo_exists():
+                widget.destroy()
+        
+        self.large_view_widgets['table_labels'] = []
+        
+        # Заполняем таблицу данными
+        if display_skiers and len(display_skiers) > 0:
+            # Есть данные для отображения
+            for i in range(3):
+                row = i + 1
+                
+                if i < len(display_skiers):
+                    skier_info = display_skiers[i]
+                    skier = skier_info['stopwatch']
+                    lap_time = skier_info['lap_time']
+                    position_num = skier_info['position']
+                    is_current = skier_info.get('is_current', False)
+                    is_best = skier_info.get('is_best', False)
+                    is_virtual = skier_info.get('is_virtual', False)
+                    
+                    # Получаем лучшее время на этом круге
+                    best_time_for_lap, best_skier_for_lap, _ = self.get_best_time_for_current_lap(current_lap)
+                    
+                    # Место
+                    place_text = f"[{position_num}]"
+                    if is_virtual:
+                        place_text = f"~{position_num}~"
+                    
+                    place_label = tk.Label(
+                        self.large_view_widgets['table_frame'],
+                        text=place_text,
+                        font=("Arial", 11, "bold"),
+                        bg="#f0f0f0",
+                        fg=self.get_place_color(position_num) if not is_virtual else "#666"
+                    )
+                    place_label.grid(row=row, column=0, padx=8, pady=8, sticky="w")
+                    self.large_view_widgets['table_labels'].append(place_label)
+                    
+                    # Имя лыжника
+                    name_text = skier.get_name()
+                    if is_current:
+                        name_text = f"→ {name_text}"
+                    
+                    name_label = tk.Label(
+                        self.large_view_widgets['table_frame'],
+                        text=name_text,
+                        font=("Arial", 11),
+                        bg="#f0f0f0",
+                        fg=skier.get_color()
+                    )
+                    name_label.grid(row=row, column=1, padx=8, pady=8, sticky="w")
+                    self.large_view_widgets['table_labels'].append(name_label)
+                    
+                    # Время или отставание
+                    if is_best:
+                        # Лучшее время круга
+                        if show_post_lap and is_current:
+                            # Если показываем результат и это текущий лыжник стал лидером
+                            # Находим время второго места для расчета преимущества
+                            second_place_time = None
+                            for skier_info2 in display_skiers:
+                                if skier_info2['position'] == 2:
+                                    second_place_time = skier_info2['lap_time']
+                                    break
+                            
+                            if second_place_time is not None:
+                                advantage = second_place_time - lap_time
+                                time_text = f"+{self.format_lap_time(advantage)}"
+                                time_color = "#4CAF50"  # Зеленый - преимущество
+                            else:
+                                time_text = self.format_lap_time(lap_time)
+                                time_color = "#2196F3"  # Синий для рекорда
+                        else:
+                            # Обычное отображение лучшего времени
+                            time_text = self.format_lap_time(lap_time)
+                            time_color = "#2196F3"  # Синий для рекорда
+                    elif is_virtual and is_current:
+                        # Виртуальное время текущего лыжника
+                        if stopwatch.running:
+                            current_time = (stopwatch.elapsed_time + 
+                                           (datetime.now() - stopwatch.start_time).total_seconds())
+                            if best_time_for_lap is not None:
+                                time_diff = current_time - best_time_for_lap
+                                if time_diff < 0:
+                                    time_text = f"-{self.format_lap_time(abs(time_diff))}"
+                                    time_color = "#4CAF50"
+                                else:
+                                    time_text = f"+{self.format_lap_time(time_diff)}"
+                                    time_color = self.get_difference_color(time_diff)
+                            else:
+                                time_text = self.format_lap_time(current_time)
+                                time_color = skier.get_color()
+                        else:
+                            time_text = self.format_lap_time(lap_time)
+                            time_color = skier.get_color()
+                    elif best_time_for_lap is not None:
+                        # Отставание от лучшего времени
+                        time_diff = lap_time - best_time_for_lap
+                        if time_diff == 0:
+                            time_text = self.format_lap_time(lap_time)
+                            time_color = "#2196F3"  # Синий, если время совпадает с лучшим
+                        else:
+                            time_text = f"+{self.format_lap_time(time_diff)}"
+                            time_color = self.get_difference_color(time_diff)
+                    else:
+                        time_text = self.format_lap_time(lap_time)
+                        time_color = skier.get_color()
+                    
+                    time_label = tk.Label(
+                        self.large_view_widgets['table_frame'],
+                        text=time_text,
+                        font=("Courier New", 11),
+                        bg="#f0f0f0",
+                        fg=time_color
+                    )
+                    time_label.grid(row=row, column=2, padx=8, pady=8, sticky="w")
+                    self.large_view_widgets['table_labels'].append(time_label)
+                else:
+                    # Нет данных для этой строки
+                    no_data_label = tk.Label(
+                        self.large_view_widgets['table_frame'],
+                        text="---",
+                        font=("Arial", 11),
+                        bg="#f0f0f0",
+                        fg="#666"
+                    )
+                    no_data_label.grid(row=row, column=0, columnspan=3, padx=8, pady=8, sticky="w")
+                    self.large_view_widgets['table_labels'].append(no_data_label)
+        else:
+            # Нет данных вообще - показываем сообщение
+            for i in range(3):
+                row = i + 1
+                no_data_label = tk.Label(
+                    self.large_view_widgets['table_frame'],
+                    text="Нет данных",
+                    font=("Arial", 11),
+                    bg="#f0f0f0",
+                    fg="#666"
+                )
+                no_data_label.grid(row=row, column=0, columnspan=3, padx=8, pady=8, sticky="w")
+                self.large_view_widgets['table_labels'].append(no_data_label)
+    
+    def update_large_view(self, stopwatch, show_post_lap=False):
+        """Обновляет увеличенный вид"""
+        if self.current_large_view == stopwatch:
+            # Проверяем, нужно ли показывать результат после круга
+            if stopwatch.just_completed_lap and stopwatch.lap_completion_time:
+                elapsed = (datetime.now() - stopwatch.lap_completion_time).total_seconds()
+                if elapsed < self.post_lap_duration:
+                    show_post_lap = True
+                else:
+                    stopwatch.just_completed_lap = False
+                    show_post_lap = False
+            
+            if show_post_lap:
+                # Режим показа результата - используем замороженный круг
+                current_lap = len(stopwatch.lap_times)  # Только что завершенный круг
+                is_racing = False
+                
+                # Обновляем таймер
+                if self.large_view_widgets.get('timer_label'):
+                    elapsed = (datetime.now() - stopwatch.lap_completion_time).total_seconds()
+                    remaining = max(0, self.post_lap_duration - elapsed)
+                    self.large_view_widgets['timer_label'].config(text=f"  ({remaining:.1f}с)")
+                
+                # НЕ обновляем таблицу и основное время - они заморожены
+                # Пропускаем обновление данных
+                pass
+            else:
+                # Обычный режим - обновляем всё
+                current_lap = stopwatch.get_current_lap() + 1
+                is_racing = stopwatch.running and (current_lap > len(stopwatch.lap_times))
+                
+                # Обновляем основное время
+                if stopwatch.running and self.large_view_widgets.get('main_time_label'):
+                    current_time = (stopwatch.elapsed_time + 
+                                   (datetime.now() - stopwatch.start_time).total_seconds())
+                    
+                    best_time, best_skier, _ = self.get_best_time_for_current_lap(current_lap)
+                    if best_skier and current_lap <= len(best_skier.lap_times):
+                        time_diff = current_time - best_time
+                        
+                        if time_diff < 0:
+                            time_text = f"-{self.format_lap_time(abs(time_diff))}"
+                            time_color = "#4CAF50"
+                        else:
+                            time_text = f"+{self.format_lap_time(time_diff)}"
+                            time_color = self.get_countdown_color(time_diff)
+                    else:
+                        time_text = stopwatch.format_time(current_time)
+                        time_color = stopwatch.get_color()
+                    
+                    self.large_view_widgets['main_time_label'].config(text=time_text, fg=time_color)
+                
+                # Обновляем таблицу соседей
+                if self.large_view_widgets.get('table_frame'):
+                    self.update_table_data(stopwatch, current_lap, is_racing, show_post_lap)
+            
+            # Обновляем состояние кнопок (всегда)
+            self.large_start_btn.config(
+                state="normal" if not stopwatch.running else "disabled",
+                bg="#4CAF50" if not stopwatch.running else "#81C784"
+            )
+            self.large_stop_btn.config(
+                state="normal" if stopwatch.running else "disabled",
+                bg="#f44336" if stopwatch.running else "#E57373"
+            )
+            self.large_lap_btn.config(
+                state="normal" if stopwatch.running else "disabled",
+                bg="#FF9800"
+            )
+            
+            # Планируем следующее обновление
+            self.root.after(100, lambda: self.update_large_view(stopwatch, show_post_lap))
+
     def get_countdown_color(self, remaining_time):
         """Возвращает цвет для обратного отсчета"""
         if remaining_time < 5:
@@ -674,64 +1139,6 @@ class StopwatchApp:
         else:
             return "#f44336"  # Красный
     
-    def update_large_view(self, stopwatch, show_post_lap=False):
-        """Обновляет увеличенный вид"""
-        if self.current_large_view == stopwatch:
-            # Получаем текущий круг
-            current_lap = stopwatch.get_current_lap() + 1
-            if show_post_lap:
-                current_lap = len(stopwatch.lap_times)
-            
-            is_racing = stopwatch.running and (current_lap > len(stopwatch.lap_times))
-            
-            # Получаем данные для отображения
-            best_skier, display_skiers, position = self.get_display_neighbors(stopwatch, current_lap, is_racing)
-            
-            # Обновляем основное время
-            if stopwatch.running and not show_post_lap:
-                current_time = (stopwatch.elapsed_time + 
-                               (datetime.now() - stopwatch.start_time).total_seconds())
-                
-                if best_skier and current_lap <= len(best_skier.lap_times):
-                    best_time = best_skier.lap_times[current_lap - 1]
-                    time_diff = current_time - best_time
-                    
-                    if time_diff < 0:
-                        time_text = f"-{self.format_lap_time(abs(time_diff))}"
-                        time_color = "#4CAF50"
-                    else:
-                        time_text = f"+{self.format_lap_time(time_diff)}"
-                        time_color = self.get_countdown_color(time_diff)
-                else:
-                    time_text = stopwatch.format_time(current_time)
-                    time_color = stopwatch.get_color()
-                
-                self.main_time_label.config(text=time_text, fg=time_color)
-            
-            # Обновляем состояние кнопок
-            self.large_start_btn.config(
-                state="normal" if not stopwatch.running else "disabled",
-                bg="#4CAF50" if not stopwatch.running else "#81C784"
-            )
-            self.large_stop_btn.config(
-                state="normal" if stopwatch.running else "disabled",
-                bg="#f44336" if stopwatch.running else "#E57373"
-            )
-            self.large_lap_btn.config(
-                state="normal" if stopwatch.running else "disabled",
-                bg="#FF9800"
-            )
-            
-            # Проверяем, не истекло ли время показа результата после круга
-            if stopwatch.just_completed_lap and stopwatch.lap_completion_time:
-                elapsed = (datetime.now() - stopwatch.lap_completion_time).total_seconds()
-                if elapsed >= self.post_lap_duration:
-                    stopwatch.just_completed_lap = False
-                    # Обновляем вид
-                    self.show_large_view(stopwatch)
-            
-            # Планируем следующее обновление
-            self.root.after(10, lambda: self.update_large_view(stopwatch, show_post_lap))
     
     def clear_large_view(self):
         """Очищает увеличенный вид"""
@@ -851,6 +1258,18 @@ class StopwatchApp:
                     show_post_lap = True
             
             self.show_large_view(self.current_large_view)
+
+        if self.current_large_view:
+            # Проверяем, не показывается ли результат после круга
+            show_post_lap = False
+            if self.current_large_view.just_completed_lap and self.current_large_view.lap_completion_time:
+                elapsed = (datetime.now() - self.current_large_view.lap_completion_time).total_seconds()
+                if elapsed < self.post_lap_duration:
+                    show_post_lap = True
+            
+            # Если показывается результат после круга, НЕ обновляем таблицу
+            if not show_post_lap:
+                self.show_large_view(self.current_large_view)
     
     def format_lap_time(self, seconds):
         """Форматирование времени круга"""
