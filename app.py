@@ -190,18 +190,18 @@ class StopwatchApp:
     def create_widgets(self):
         """Создание интерфейса приложения"""
         # Основной контейнер с разделением на левую и правую части
-        main_container = tk.Frame(self.root)
-        main_container.pack(fill="both", expand=True, padx=10, pady=10)
+        self.main_container = tk.Frame(self.root)  # Делаем атрибутом класса
+        self.main_container.pack(fill="both", expand=True, padx=10, pady=10)
         
         # ЛЕВАЯ ПАНЕЛЬ - список лыжников (уменьшаем ширину)
-        left_panel = tk.Frame(main_container, width=800)  # Уменьшил ширину
+        left_panel = tk.Frame(self.main_container, width=800)  # Уменьшил ширину
         left_panel.pack(side="left", fill="both")
         left_panel.pack_propagate(False)  # Фиксируем ширину
         
         self.create_left_panel(left_panel)
         
         # ПРАВАЯ ПАНЕЛЬ - разделена на верхнюю (увеличенный вид) и нижнюю (круги)
-        right_panel = tk.Frame(main_container, width=450)  # Увеличил ширину
+        right_panel = tk.Frame(self.main_container, width=450)  # Увеличил ширину
         right_panel.pack(side="right", fill="both", expand=True)
         
         self.create_top_right_panel(right_panel)

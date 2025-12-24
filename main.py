@@ -1,5 +1,6 @@
 import tkinter as tk
 from app import StopwatchApp
+from integration import ParserIntegration  # Импортируем интеграционный модуль
 
 def main():
     """Главная функция приложения"""
@@ -8,6 +9,9 @@ def main():
     
     # Создаем экземпляр приложения
     app = StopwatchApp(root)
+    
+    # Инициализируем интеграцию с парсером
+    parser_integration = ParserIntegration(app)
     
     # Запускаем главный цикл
     root.mainloop()
